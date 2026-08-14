@@ -31,7 +31,23 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm build
+      # 构建前清空 outDir：tsc 不清理 outDir，源模块改名/删除后的过期输出会
+      # 留在 lib/types/ 里跟着发布，清空才能让下一步的比对看见它们。
+      - run: rm -rf lib/types && pnpm build
+
+      # 产物一致性闸门。docs/contributing.md 要求「改 src/ 后运行 pnpm build
+      # 并提交对应的 lib/types/ 变更」，此前只是约定、没有机制强制。它同时拦
+      # 三类漂移：忘记重建、手工解冲突把产物解错（.d.ts.map 是单行文件，冲突
+      # 只能靠重建解、不能靠手改）、以及上面说的过期输出。入库的 lib/ 才是真正
+      # 发布并执行的东西，而回归脚本经 tsx 跑的是 src/——两者不一致时，发出去
+      # 的代码没有任何测试覆盖过，也没有任何地方会报警。
+      - run: git diff --exit-code -- lib
+
+      # ./invariant 导出契约：lib/invariant.js 是唯一不由 pnpm build 产生的
+      # 入库产物（同一份文档记为已知例外，靠手工与 src/invariant.ts 对齐），
+      # 上面的闸门覆盖不到它。这条手工约定失守过一次，两侧 PACKAGE_NAME 分歧
+      # 数周无人可察，故行为化补上。
+      - run: node scripts/verify-invariant-export.mjs
 
       # 带断言的回归：提问面板内联输入（issue #9）+ 工具卡排版
       # （⎿ 缩进、diff 红绿行、信封剥离），失败即非零退出。
