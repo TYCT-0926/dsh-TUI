@@ -6,6 +6,7 @@
 import {
   CURSOR_HOME,
   csi,
+  SGR_RESET,
   scrollUp,
 } from './termio/csi.js'
 
@@ -64,9 +65,15 @@ function isModernWindowsTerminal(): boolean {
  * @returns the escape sequence that pushes content into the scrollback and homes the cursor.
  */
 export function getClearTerminalSequence(): string {
+  // SGR_RESET first: CSI S fills the scrolled-in rows with the CURRENT
+  // background color (BCE). Frame-end resets normally guarantee SGR=none,
+  // but a truncated frame (dropped bytes, interrupted write) can leave a
+  // colored background active — without the reset, this scroll floods the
+  // viewport AND the scrollback with 10000 rows of that color (seen in
+  // the wild as a full-screen red wash, issue #10).
   // Large enough to push any realistic screen + scrollback above the
   // viewport; scrolling past the buffer end just yields blank rows.
-  return scrollUp(10000) + CURSOR_HOME
+  return SGR_RESET + scrollUp(10000) + CURSOR_HOME
 }
 
 /**

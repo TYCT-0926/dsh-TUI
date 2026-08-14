@@ -24,6 +24,7 @@ import {
   scrollDown as csiScrollDown,
   scrollUp as csiScrollUp,
   RESET_SCROLL_REGION,
+  SGR_RESET,
   setScrollRegion,
 } from './termio/csi.js'
 import { LINK_END, link as oscLink } from './termio/osc.js'
@@ -191,10 +192,16 @@ export class LogUpdate {
         bottom < next.screen.height
       ) {
         shiftRows(prev.screen, top, bottom, delta)
+        // SGR_RESET first: the hardware scroll's blank fill uses the
+        // terminal's CURRENT background (BCE). The frame-end reset should
+        // guarantee SGR=none here, but a truncated previous frame can leave
+        // a colored background stuck — this turns that assumption into a
+        // guarantee for the cost of 4 bytes per scroll frame.
         scrollPatch = [
           {
             type: 'stdout',
             content:
+              SGR_RESET +
               setScrollRegion(top + 1, bottom + 1) +
               (delta > 0 ? csiScrollUp(delta) : csiScrollDown(-delta)) +
               RESET_SCROLL_REGION +
