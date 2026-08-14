@@ -33,6 +33,10 @@ import { LINK_END, link as oscLink } from './termio/osc.js'
 
 type State = {
   previousOutput: string
+  /** One-shot: the next main-screen frame repaints the whole viewport from
+   *  the physical cursor position instead of diffing. See
+   *  requestViewportReanchor. */
+  reanchorPending: boolean
 }
 
 type Options = {
@@ -53,7 +57,30 @@ export class LogUpdate {
   constructor(private readonly options: Options) {
     this.state = {
       previousOutput: '',
+      reanchorPending: false,
     }
+  }
+
+  /**
+   * Request a one-shot viewport re-anchor on the next main-screen frame.
+   *
+   * The main-screen diff engine addresses rows purely relative to where it
+   * left the cursor — it has no absolute anchor and no way to notice when a
+   * third party moved it. A subprocess writing directly to the tty (an MCP
+   * server's stderr, a stray native log line — issue #17) advances the
+   * cursor and scrolls the terminal; every subsequent diff then lands N
+   * rows off, garbling the UI (missing labels, shifted rows — issue #16)
+   * until some full repaint happens to run. There is nothing to detect
+   * after the fact (a newline-terminated write parks the cursor back at
+   * the bottom column 0, exactly where the engine expects it), so the
+   * recovery is a blind idempotent repaint: rebuild the viewport from the
+   * physical cursor position, which re-syncs the virtual↔physical mapping
+   * no matter how far they had drifted. Wired to the stdin-gap reassert
+   * (>5s idle then a keypress) — the same trigger that re-asserts DEC
+   * modes after tmux attach / ssh reconnect.
+   */
+  requestViewportReanchor(): void {
+    this.state.reanchorPending = true
   }
 
   /**
@@ -167,6 +194,18 @@ export class LogUpdate {
       (prev.viewport.width !== 0 && next.viewport.width !== prev.viewport.width)
     ) {
       return fullResetSequence_CAUSES_FLICKER(next, 'resize', stylePool)
+    }
+
+    // One-shot viewport re-anchor (see requestViewportReanchor): repaint
+    // the whole visible window from the physical cursor position, blind to
+    // whatever a third-party tty write did to it. Main-screen only — the
+    // alt-screen path already self-heals with CSI H every frame. Checked
+    // after the resize reset (which supersedes it; the flag survives to
+    // the next frame) and before the DECSTBM path (alt-screen only, so
+    // mutually exclusive anyway).
+    if (this.state.reanchorPending && !altScreen) {
+      this.state.reanchorPending = false
+      return repaintViewportInPlace(prev, next, stylePool)
     }
 
     // DECSTBM scroll optimization: when a ScrollBox's scrollTop changed,
@@ -585,6 +624,15 @@ function fullResetSequence_CAUSES_FLICKER(
  * derives (viewport top = H-V+1 when H >= V), so the next frame needs no
  * special casing. Cost is O(viewport) cells once per shrink frame, well
  * under the fullReset path it replaces (whole frame + 10000-row scroll).
+ *
+ * Also reused by the viewport re-anchor (requestViewportReanchor), where
+ * the cursor may NOT be exactly on the park row — a third-party write
+ * left it somewhere in the bottom region. The CR + cursorUp(V-1) still
+ * lands on the viewport top because CUU clamps at the top margin, so the
+ * repaint re-syncs the mapping from any bottom-region start. (On legacy
+ * conhost the clamp can drag the viewport instead — see
+ * hasCursorUpViewportYankBug — but only when the cursor starts above the
+ * bottom row, which no known writer produces.)
  */
 function repaintViewportInPlace(
   prev: Frame,
