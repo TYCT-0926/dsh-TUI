@@ -255,23 +255,26 @@ const buf = term.buffer.active
 const scrollbackRows = buf.length - ROWS
 console.log(`buffer 总行数=${buf.length} 视口=${ROWS} scrollback=${scrollbackRows}`)
 
+// 成功标准是「恰好一份终态拷贝」：inline 模式内容超视口后，超出部分沉入
+// scrollback 本是正常语义（转录式渲染器同样如此）——不允许的是【重复】
+// 拷贝（收缩帧 full-reset 每轮把整份 UI 再打一遍）与 full-reset 本身。
 const count = (needle: string) => lines.filter(l => l.includes(needle)).length
-// 每个断言目标在 UI 里都只应有一份。
-const targets = [
-  '探索未至',            // logo 欢迎语（启动页随机插入 = 它出现 >1 次）
-  '历史问题 0：',
-  '历史问题 1：',
-  '看看这个项目，给个概览',
-  '五、代码结构',
-  '九、当前状态备注',
-]
-for (const t of targets) {
+const countExact = (needle: string) => lines.filter(l => l.trim() === needle).length
+// 每个标记在完整 UI 里恰好一份：logo/用户消息按包含匹配，节标题按整行
+// 匹配（正文 bullet 行 `- 五、… 的第 N 条…` 含标题字符串，属于同一份拷贝
+// 的合法内容，不能按包含计数）。
+for (const t of ['探索未至', '历史问题 0：', '历史问题 1：', '看看这个项目，给个概览']) {
   const n = count(t)
-  check(`「${t}」只出现一次`, n <= 1, `实际 ${n} 次`)
+  check(`「${t}」恰好一份`, n === 1, `实际 ${n} 次`)
 }
-// 汇总视图：把 scrollback 里残留的 UI 行统计出来。
-const uiLinesInScrollback = lines.slice(0, Math.max(0, scrollbackRows)).filter(l => l.trim() !== '').length
-check('scrollback 无 UI 残留行', uiLinesInScrollback === 0, `残留 ${uiLinesInScrollback} 行`)
+for (const t of ['五、代码结构', '九、当前状态备注']) {
+  const n = countExact(t)
+  check(`「${t}」标题行恰好一份`, n === 1, `实际 ${n} 次`)
+}
+// full-reset 零触发：收缩帧（thinking 折叠、回合结束 spinner 卸载）必须走
+// 视口就地重画，任何一次 clearTerminal 都会把整份 UI 复制进 scrollback。
+const resets = (allRaw.match(/\x1b\[\d+S/g) ?? []).length
+check('full-reset 零触发（无 CSI nS）', resets === 0, `实际 ${resets} 次`)
 
 if (failed > 0) {
   console.log('\n=== scrollback 前 60 非空行（残留证据） ===')
