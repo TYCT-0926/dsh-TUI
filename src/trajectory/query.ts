@@ -22,7 +22,7 @@
  * erroring, so a half-typed query still narrows sensibly while you type.
  */
 
-import { previewText } from '../dsh-adapter/trajectory/index.js'
+import { burstErrors, burstRunning, previewText } from '../dsh-adapter/trajectory/index.js'
 import type { TrajKind, TrajNode } from '../dsh-adapter/types.js'
 
 /** One parsed predicate. */
@@ -145,9 +145,9 @@ function matchesTerm(node: TrajNode, term: Term): boolean {
     case 'turn':
       return node.turn === term.value
     case 'error':
-      return node.status === 'error' || (node.burst?.members.some(m => m.status === 'error') ?? false)
+      return node.status === 'error' || (node.burst !== undefined && burstErrors(node.burst) > 0)
     case 'running':
-      return node.status === 'running' || (node.burst?.members.some(m => m.status === 'running') ?? false)
+      return node.status === 'running' || (node.burst !== undefined && burstRunning(node.burst))
     case 'duration': {
       const ms = node.durationMs
       if (ms === undefined) return false

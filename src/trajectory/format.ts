@@ -8,7 +8,7 @@
 
 import { stringWidth } from '../ink/stringWidth.js'
 import type { Theme } from '../theme.js'
-import type { TrajKind, TrajNode } from '../dsh-adapter/types.js'
+import type { TrajKind } from '../dsh-adapter/types.js'
 
 /**
  * Truncate to a terminal DISPLAY width, CJK-aware (a wide char costs two
@@ -83,6 +83,27 @@ export function heatColor(ms: number | undefined): keyof Theme {
   return 'subtle'
 }
 
+/**
+ * Cost glyph for a row's own duration — an ABSOLUTE, learnable scale.
+ *
+ * A relative scale (tallest row in view = full block) would re-teach itself on
+ * every scroll; fixed thresholds mean `█` always says "over a minute" and `▁`
+ * always says "instant", so after one session the column is read without
+ * looking at the number beside it. Each step is roughly half an order of
+ * magnitude, which is the resolution a human actually acts on.
+ */
+export function costGlyph(ms: number | undefined): string {
+  if (ms === undefined) return ' '
+  if (ms >= 60_000) return '█'
+  if (ms >= 30_000) return '▇'
+  if (ms >= 10_000) return '▆'
+  if (ms >= 3_000) return '▅'
+  if (ms >= 1_000) return '▄'
+  if (ms >= 300) return '▃'
+  if (ms >= 100) return '▂'
+  return '▁'
+}
+
 /** Fixed-width badge text per row kind (4 columns, so every row aligns). */
 export const KIND_BADGE: Record<TrajKind, string> = {
   turn: 'TURN',
@@ -127,7 +148,10 @@ export const KIND_FG: Record<TrajKind, keyof Theme> = {
   step: 'subtle',
   user: 'suggestion',
   assistant: 'claude',
-  thinking: 'autoAccept',
+  // Reasoning is ambient: it is the most numerous row kind and the least
+  // often the thing you came to find, so it recedes rather than competing
+  // with tool names for the eye.
+  thinking: 'inactive',
   tool: 'chromeYellow',
   subtool: 'autoAccept',
   retry: 'error',
@@ -135,7 +159,7 @@ export const KIND_FG: Record<TrajKind, keyof Theme> = {
   compaction: 'planMode',
   system: 'planMode',
   context: 'success',
-  todo: 'success',
+  todo: 'planMode',
 }
 
 /**
@@ -145,7 +169,6 @@ export const KIND_FG: Record<TrajKind, keyof Theme> = {
 export const KIND_BADGE_BG: Partial<Record<TrajKind, keyof Theme>> = {
   user: 'userMessageBackground',
   assistant: 'userMessageBackground',
-  thinking: 'userMessageBackground',
   tool: 'bashMessageBackgroundColor',
   subtool: 'bashMessageBackgroundColor',
   retry: 'diffRemoved',
@@ -154,13 +177,6 @@ export const KIND_BADGE_BG: Partial<Record<TrajKind, keyof Theme>> = {
   system: 'diffAddedDimmed',
   context: 'diffAdded',
   todo: 'diffAdded',
-}
-
-/** Status colour for the row's own duration and spine. */
-export function statusColor(node: TrajNode): keyof Theme | undefined {
-  if (node.status === 'error') return 'error'
-  if (node.status === 'running') return 'success'
-  return undefined
 }
 
 /**

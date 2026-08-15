@@ -408,8 +408,17 @@ function burstEvents(count, { interleave = -1 } = {}) {
       const okWidth = band.buckets.length === width
       const okPeak = band.peak > 0
       const okSeek = band.buckets.every(b => b.firstIndex >= 0 && b.firstIndex < whole.nodes.length)
+      // Conservation: every row's cost lands in exactly one column. Cost is
+      // wall-clock (own duration plus a nominal floor so a message still
+      // registers), and structural rows contribute nothing because their span
+      // is the sum of their children's — counting both would double it.
       const total = band.buckets.reduce((sum, b) => sum + b.weight, 0)
-      const okTotal = Math.abs(total - whole.nodes.reduce((sum, n) => sum + (n.kind === 'turn' || n.kind === 'step' ? 0.25 : n.burst ? Math.min(4, n.burst.members.length) : 1), 0)) < 1e-6
+      const expected = whole.nodes.reduce((sum, n) => {
+        if (n.kind === 'turn' || n.kind === 'step') return sum
+        if (n.burst) return sum + n.burst.members.reduce((inner, m) => inner + (m.durationMs ?? 0) + 120, 0)
+        return sum + (n.durationMs ?? 0) + 120
+      }, 0)
+      const okTotal = Math.abs(total - expected) < 1e-6
       if (!(okWidth && okPeak && okSeek && okTotal)) {
         check(`wave ${projection}@${width} is well formed`, false, `w=${okWidth} p=${okPeak} s=${okSeek} t=${okTotal}`)
       }
@@ -418,6 +427,12 @@ function burstEvents(count, { interleave = -1 } = {}) {
   check('wave is well formed across projections and widths', true, '3 projections x 5 widths')
 
   const band = projectWave(whole.nodes, 60)
+  const nonEmpty = band.buckets.filter(b => b.weight > 0).map(b => b.weight).sort((a, b) => a - b)
+  check('wave floor is the smallest non-empty column', band.floor === nonEmpty[0], `${band.floor} vs ${nonEmpty[0]}`)
+  check('wave peak is the p95 column, not the maximum',
+    band.peak === nonEmpty[Math.min(nonEmpty.length - 1, Math.floor(nonEmpty.length * 0.95))] &&
+    band.peak <= nonEmpty[nonEmpty.length - 1],
+    `${band.peak} <= ${nonEmpty[nonEmpty.length - 1]}`)
   check('wave surfaces the error column', band.buckets.some(b => b.error))
   check('wave surfaces the retry column', band.buckets.some(b => b.retry))
   check('wave records turn boundaries', band.turns.length === 5, `${band.turns.length}`)

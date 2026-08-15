@@ -1,8 +1,10 @@
 import React from 'react'
-import { Box, Text } from '../../ui.js'
-import { previewText } from '../../dsh-adapter/trajectory/index.js'
+import { Box, Text, useTheme } from '../../ui.js'
+import { burstDurationMs, burstErrors, previewText } from '../../dsh-adapter/trajectory/index.js'
 import {
+  costGlyph,
   formatDuration,
+  formatClock,
   heatColor,
   KIND_BADGE,
   KIND_BADGE_BG,
@@ -12,27 +14,38 @@ import {
 } from '../../trajectory/format.js'
 import { arrive, mix } from '../../trajectory/motion.js'
 import { getTheme } from '../../theme.js'
-import { useTheme } from '../../ui.js'
 import type { TrajNode } from '../../dsh-adapter/types.js'
 
 /**
  * The ledger — one line per event, columns aligned across every row.
  *
- * Two decisions carry most of the readability:
+ * Four decisions carry most of the readability:
  *
  * **Flat rows, spined turns.** Indenting by turn would break the column
  * alignment that makes forty rows scannable at a glance, so rows stay flush
  * and a two-cell spine on the left (`╭ │ ╰`, the git-graph idiom) carries the
  * grouping instead. The spine is itself information: it turns red for a turn
- * that failed and breathes green for the turn still running.
+ * that failed and green for the turn still running.
+ *
+ * **Turn boundaries are rules, not rows.** A turn is a chapter heading, and a
+ * heading that looks like a body row makes the ledger read as one undifferentiated
+ * list. Rendering it as a full-width rule chunks a five-hundred-row session
+ * into things the eye can count.
+ *
+ * **Cost before number.** Every row carries a one-cell bar on an absolute
+ * scale, so "which of these was slow" is answered by silhouette rather than by
+ * reading a column of durations.
  *
  * **Call and result on one line.** `name {args} → result` — the same shape the
- * official web ledger uses, and the reason a screenful answers "what did it
- * do and what came back" without a single expansion.
+ * official web ledger uses, and the reason a screenful answers "what did it do
+ * and what came back" without a single expansion.
  *
  * Rows are windowed by the caller; this component paints only what it is
  * given, and calls {@link previewText} exactly once per visible cell.
  */
+
+/** Idle shorter than this is noise, not a pause worth naming. */
+const IDLE_FLOOR_MS = 20_000
 
 /** Spine glyphs by position within a turn. */
 const SPINE = { open: '╭', mid: '│', close: '╰', none: ' ' } as const
@@ -48,7 +61,6 @@ function spineGlyph(rows: readonly TrajNode[], index: number): string {
 
 export function Ledger({
   rows,
-  offsets,
   start,
   height,
   cursor,
@@ -59,8 +71,6 @@ export function Ledger({
 }: {
   /** The (possibly filtered) ledger. */
   rows: readonly TrajNode[]
-  /** Original ledger index of each row, for the `#N` column. */
-  offsets: readonly number[]
   /** Index of the first visible row. */
   start: number
   /** Visible row count. */
@@ -83,10 +93,7 @@ export function Ledger({
 
   // The ledger is the scene's only elastic region: the chrome above and the
   // inspector below have fixed heights, so `flexGrow` here absorbs whatever
-  // the viewport actually offers. That is deliberately more robust than
-  // matching the terminal height by arithmetic — a one-row disagreement with
-  // the host (an alt-screen wrapper that also claims the full height, say)
-  // clips one ledger row instead of scrolling the header off the top.
+  // the viewport actually offers.
   if (visible.length === 0) {
     return (
       <Box flexDirection="column" flexGrow={1} flexShrink={1} overflow="hidden">
@@ -100,33 +107,54 @@ export function Ledger({
       {visible.map((node, offset) => {
         const index = start + offset
         const focused = index === cursor
-        const failed = node.status === 'error' || (node.burst?.members.some(m => m.status === 'error') ?? false)
+        const failed = node.status === 'error' || (node.burst !== undefined && burstErrors(node.burst) > 0)
         const running = node.status === 'running'
         const isNew = index >= arrivalFrom && arriving > 0
+        const duration = node.burst === undefined ? node.durationMs : burstDurationMs(node.burst)
 
-        // Spine colour is the turn's health, not the row's.
+        // ── turn boundary: a rule, not a row ────────────────────────────────
+        if (node.kind === 'turn') {
+          const tone = failed ? 'error' : running ? 'success' : 'inactive'
+          // Idle between turns is wall-clock the session spent waiting on the
+          // human, and it is invisible everywhere else — the durations only
+          // ever account for work. Surfacing it here is what makes the clock
+          // column add up.
+          const previous = rows[index - 1]
+          const idle =
+            previous === undefined
+              ? 0
+              : node.time - (previous.time + (previous.durationMs ?? 0))
+          const idleText = idle >= IDLE_FLOOR_MS ? `  ⋯ ${formatDuration(idle)}` : ''
+          const right = `${duration === undefined ? '' : formatDuration(duration)}${failed ? ' ✗' : ''}`
+          const left = `${focused ? '▸' : ' '}── ${node.label}${idleText} `
+          const fill = Math.max(2, width - left.length - right.length - 2)
+          return (
+            <Box key={`${node.seq}:turn`} width="100%" height={1} flexShrink={0}>
+              <Text color={tone} bold={focused}>
+                {`${focused ? '▸' : ' '}── ${node.label}`}
+                <Text color="subtle">{idleText}</Text>
+                <Text color="subtle">{` ${'─'.repeat(fill)} ${right}`}</Text>
+              </Text>
+            </Box>
+          )
+        }
+
         const spineColor = failed ? 'error' : running ? 'success' : node.seed === true ? 'subtle' : 'inactive'
-
         const badgeBg = KIND_BADGE_BG[node.kind]
         const badge = layout.badge === 4 ? KIND_BADGE[node.kind] : KIND_GLYPH[node.kind]
 
-        // Label + detail share one budget so a long tool name never pushes
+        // Label and detail share one budget so a long tool name never pushes
         // the duration column off the row.
         const label = node.burst !== undefined ? `${node.label} ×${node.burst.members.length}` : node.label
         const detailBudget = Math.max(0, layout.detail - label.length - 1)
         const detail = node.detail === undefined ? '' : previewText(node.detail, detailBudget)
         const outcome =
           layout.outcome && node.outcome !== undefined && node.outcome !== ''
-            ? previewText(node.outcome, Math.max(8, Math.floor(layout.detail * 0.35)))
+            ? previewText(node.outcome, Math.max(8, Math.floor(layout.detail * 0.3)))
             : ''
 
-        const duration =
-          node.burst !== undefined
-            ? node.burst.members.reduce((sum, m) => sum + (m.durationMs ?? 0), 0)
-            : node.durationMs
-
         return (
-          <Box key={`${node.seq}:${node.kind}`} flexDirection="row" width="100%" gap={1}>
+          <Box key={`${node.seq}:${node.kind}`} flexDirection="row" width="100%" height={1} flexShrink={0} gap={1}>
             <Box flexShrink={0}>
               <Text color={spineColor}>
                 {focused ? '▸' : ' '}
@@ -134,8 +162,12 @@ export function Ledger({
               </Text>
             </Box>
             {layout.index && (
-              <Box flexShrink={0} width={5}>
-                <Text color="subtle">{`#${offsets[index] ?? index}`}</Text>
+              <Box flexShrink={0} width={8}>
+                {/* Wall-clock, not a record index or an offset: an offset
+                    collapses to the same value for every row late in a long
+                    session, and "it hung around 10:02" is how a person
+                    remembers the thing they came here to find. */}
+                <Text color="subtle">{formatClock(node.time)}</Text>
               </Box>
             )}
             <Box flexShrink={0}>
@@ -154,6 +186,9 @@ export function Ledger({
                 <Text color={focused ? 'suggestion' : 'inactive'}>{detail}</Text>
                 {outcome === '' ? '' : <Text color="subtle">{`  → ${outcome}`}</Text>}
               </Text>
+            </Box>
+            <Box flexShrink={0}>
+              <Text color={running ? 'success' : heatColor(duration)}>{costGlyph(duration)}</Text>
             </Box>
             <Box flexShrink={0} justifyContent="flex-end" width={7}>
               <Text color={running ? 'success' : heatColor(duration)}>

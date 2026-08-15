@@ -1,10 +1,8 @@
 import React from 'react';
 import type { TrajNode } from '../../dsh-adapter/types.js';
-export declare function Ledger({ rows, offsets, start, height, cursor, width, tick, arrivalTick, arrivalFrom, }: {
+export declare function Ledger({ rows, start, height, cursor, width, tick, arrivalTick, arrivalFrom, }: {
     /** The (possibly filtered) ledger. */
     rows: readonly TrajNode[];
-    /** Original ledger index of each row, for the `#N` column. */
-    offsets: readonly number[];
     /** Index of the first visible row. */
     start: number;
     /** Visible row count. */

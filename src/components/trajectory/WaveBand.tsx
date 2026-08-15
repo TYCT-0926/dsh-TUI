@@ -84,7 +84,11 @@ export function WaveBand({
   }
 
   // ── the band itself ──────────────────────────────────────────────────────
-  const peak = Math.max(1, band.peak)
+  // Normalize between the smallest non-empty column and the tallest, both in
+  // log space: the smallest real activity is one block, the busiest is eight,
+  // and four orders of magnitude in between stay distinguishable.
+  const logFloor = Math.log1p(Math.max(0, band.floor))
+  const logSpan = Math.max(1e-6, Math.log1p(Math.max(1, band.peak)) - logFloor)
   const alertPhase = alert(tick, alertTick)
   const breath = alive(tick)
   let wave = ''
@@ -113,7 +117,14 @@ export function WaveBand({
       continue
     }
 
-    const level = Math.min(BLOCKS.length - 1, Math.max(0, Math.round((bucket.weight / peak) * (BLOCKS.length - 1))))
+    // Log scale: a session mixing three-minute calls with millisecond ones
+    // spans four orders of magnitude, and a linear map would render one spike
+    // over a flat line. log1p keeps the small work legible while the expensive
+    // stretches still top out.
+    const level = Math.min(
+      BLOCKS.length - 1,
+      Math.max(0, Math.round(((Math.log1p(bucket.weight) - logFloor) / logSpan) * (BLOCKS.length - 1))),
+    )
     const base = channelColor(dominantChannel(bucket), theme)
     // A dimmed (non-matching) column keeps its glyph — only its colour drops,
     // so the band's silhouette never changes while a query is being typed.

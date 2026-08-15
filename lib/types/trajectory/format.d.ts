@@ -6,7 +6,7 @@
  * about what the session log means.
  */
 import type { Theme } from '../theme.js';
-import type { TrajKind, TrajNode } from '../dsh-adapter/types.js';
+import type { TrajKind } from '../dsh-adapter/types.js';
 /**
  * Truncate to a terminal DISPLAY width, CJK-aware (a wide char costs two
  * columns). Used where the caller must control the cut precisely: Ink's own
@@ -39,6 +39,16 @@ export declare function formatTokens(count: number): string;
  * one red cell is not.
  */
 export declare function heatColor(ms: number | undefined): keyof Theme;
+/**
+ * Cost glyph for a row's own duration — an ABSOLUTE, learnable scale.
+ *
+ * A relative scale (tallest row in view = full block) would re-teach itself on
+ * every scroll; fixed thresholds mean `█` always says "over a minute" and `▁`
+ * always says "instant", so after one session the column is read without
+ * looking at the number beside it. Each step is roughly half an order of
+ * magnitude, which is the resolution a human actually acts on.
+ */
+export declare function costGlyph(ms: number | undefined): string;
 /** Fixed-width badge text per row kind (4 columns, so every row aligns). */
 export declare const KIND_BADGE: Record<TrajKind, string>;
 /** One-character badge for the narrowest layout tier. */
@@ -54,8 +64,6 @@ export declare const KIND_FG: Record<TrajKind, keyof Theme>;
  * unfilled (structural rows, which should recede behind the work rows).
  */
 export declare const KIND_BADGE_BG: Partial<Record<TrajKind, keyof Theme>>;
-/** Status colour for the row's own duration and spine. */
-export declare function statusColor(node: TrajNode): keyof Theme | undefined;
 /**
  * Ledger column budget at a given terminal width.
  *

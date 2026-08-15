@@ -162,8 +162,18 @@ export interface WaveBucket {
 /** The wave band projected at one specific column count. */
 export interface WaveBand {
   readonly buckets: readonly WaveBucket[]
-  /** Highest `weight` across buckets; the view scales glyph height by it. */
+  /**
+   * Weight that maps to the tallest glyph — the 95th percentile of non-empty
+   * columns, not the maximum. Columns above it clamp to a full block.
+   */
   readonly peak: number
+  /**
+   * Lowest NON-EMPTY bucket weight. Glyph levels are normalized between this
+   * and {@link peak} rather than from zero: a typical bucket already sits near
+   * half of `log1p(peak)`, so a zero-based scale leaves the lower half of the
+   * glyph ramp permanently unused and the band reads as a flat smear.
+   */
+  readonly floor: number
   /** Turn-boundary markers as `[turn, bucketIndex]`, for the ruler row. */
   readonly turns: readonly (readonly [number, number])[]
 }

@@ -14,6 +14,7 @@ import { stringWidth } from '../ink/stringWidth.js'
 import { t } from '../i18n.js'
 import {
   aggregate,
+  burstErrors,
   columnOfIndex,
   extendTrajectory,
   inspectNode,
@@ -63,7 +64,10 @@ export function TrajectoryScene({
   const [hotCursor, setHotCursor] = React.useState(0)
   const [queryOpen, setQueryOpen] = React.useState(false)
   const [queryText, setQueryText] = React.useState('')
-  const [projection, setProjection] = React.useState<WaveProjection>('sequence')
+  // Compressed wall-clock is the default: it reads as a session profile — busy
+  // stretches are wide AND tall, idle gaps collapse to a thin flat run — while
+  // the pure sequence axis is the specialist view for scanning what happened.
+  const [projection, setProjection] = React.useState<WaveProjection>('compressed')
   const [sort, setSort] = React.useState<HotspotSort>('duration')
   const [expanded, setExpanded] = React.useState(false)
   const [inspectScroll, setInspectScroll] = React.useState(0)
@@ -179,7 +183,7 @@ export function TrajectoryScene({
       const node = filtered[index]
       return (
         node !== undefined &&
-        (node.status === 'error' || node.kind === 'retry' || (node.burst?.members.some(m => m.status === 'error') ?? false))
+        (node.status === 'error' || node.kind === 'retry' || (node.burst !== undefined && burstErrors(node.burst) > 0))
       )
     },
     [filtered],
@@ -397,7 +401,6 @@ export function TrajectoryScene({
         <>
           <Ledger
             rows={filtered}
-            offsets={indexes}
             start={windowStart}
             height={ledgerRows}
             cursor={clampedCursor}

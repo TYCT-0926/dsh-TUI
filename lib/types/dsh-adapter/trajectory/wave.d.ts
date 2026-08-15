@@ -20,7 +20,7 @@
  * when the node count, the column count, or the projection changes — the
  * caller memoizes on exactly those three, which is why no cache lives here.
  */
-import type { TrajNode, WaveBand, WaveBucket, WaveChannel, WaveProjection } from './types.js';
+import { type TrajNode, type WaveBand, type WaveBucket, type WaveChannel, type WaveProjection } from './types.js';
 /** Which band channel a row contributes its weight to. */
 export declare function channelOf(kind: TrajNode['kind']): WaveChannel;
 /**
