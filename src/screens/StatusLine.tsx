@@ -6,6 +6,7 @@ import { KeyboardShortcutHint } from '../components/design-system/KeyboardShortc
 import { ActivityLine, contextPressurePct } from '../components/ActivityLine.js'
 import type { Channel } from '../dsh-adapter/channel.js'
 import { modeDisplayName } from '../sessionModes.js'
+import { modLabel } from '../utils/modifiers.js'
 import {
   renderContextBar,
   renderTpsGauge,
@@ -25,10 +26,17 @@ export function StatusLine({
   channel,
   selectionActive = false,
   helpOpen = false,
+  trajectory,
 }: {
   channel: Channel
   selectionActive?: boolean
   helpOpen?: boolean
+  /**
+   * Live trajectory counters. Present whenever the host folds the session
+   * event log (the real Chat screen always does); absent in headless embeds,
+   * where the chip simply does not appear.
+   */
+  trajectory?: { rows: number; errors: number }
 }) {
   const { columns } = useTerminalSize()
   const [themeName] = useTheme()
@@ -214,6 +222,21 @@ export function StatusLine({
             <Text color="inactiveShimmer" wrap="truncate">
               {hint}
             </Text>
+          ) : null}
+          {/* The trajectory chip: the conversation's only mention that a whole
+              second view of this session exists. It earns its six columns by
+              being an INSTRUMENT rather than a label — the step count grows as
+              the session works, and the error count appears in red the moment
+              something fails, so the reason to press the key shows up before
+              the user thinks to look for it. */}
+          {trajectory !== undefined && trajectory.rows > 0 ? (
+            <Box flexShrink={0} flexDirection="row" gap={1}>
+              <Text color="inactive">{`⌁ ${trajectory.rows}`}</Text>
+              {trajectory.errors > 0 ? (
+                <Text color="error" bold>{`● ${trajectory.errors}`}</Text>
+              ) : null}
+              <Text color="subtle">{`${modLabel}t`}</Text>
+            </Box>
           ) : null}
         </Box>
       </Box>

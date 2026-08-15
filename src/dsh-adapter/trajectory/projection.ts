@@ -80,12 +80,32 @@ export interface TrajBuild {
   readonly nodes: TrajNode[]
   /** Per-step timing keyed `${turn}:${step}`, for the hotspot aggregate. */
   readonly timing: Map<string, StepTiming>
+  /**
+   * Running counters, maintained O(1) per event.
+   *
+   * The status-line badge needs "how many rows, how many failed" on every
+   * chat frame; deriving that with a scan would make an idle conversation pay
+   * O(session) per repaint, which is exactly the cost the incremental fold
+   * exists to avoid.
+   */
+  readonly counts: TrajCounts
   /** Open brackets and fold state; internal, but reused across appends. */
   readonly state: FoldState
 }
 
+/** Cheap session counters the chat chrome reads every frame. */
+export interface TrajCounts {
+  /** Ledger rows, after burst folding. */
+  rows: number
+  /** Rows that ended in failure, plus retry sequences. */
+  errors: number
+  /** Retry attempts across the session. */
+  retries: number
+}
+
 /** Mutable fold bookkeeping carried between incremental appends. */
 interface FoldState {
+  counts: TrajCounts
   tools: Map<string, TrajNode>
   subtools: Map<string, TrajNode>
   steps: Map<string, TrajNode>
@@ -114,6 +134,7 @@ interface FoldState {
 /** Fresh, empty fold state. */
 function newState(): FoldState {
   return {
+    counts: { rows: 0, errors: 0, retries: 0 },
     tools: new Map(),
     subtools: new Map(),
     steps: new Map(),
@@ -148,6 +169,10 @@ function newState(): FoldState {
  */
 function cloneState(previous: FoldState): FoldState {
   return {
+    // Counters are shared, not copied: like `nodes`, they belong to the build
+    // being extended, and a continuation must keep incrementing the same
+    // object the caller already holds.
+    counts: previous.counts,
     tools: new Map(previous.tools),
     subtools: new Map(previous.subtools),
     steps: new Map(previous.steps),
@@ -201,12 +226,14 @@ function readTokens(usage: unknown): TrajTokens | undefined {
 
 /** Close a bracket node with its own duration and outcome. */
 function close(
+  state: FoldState,
   node: TrajNode | undefined,
   event: RawTrajEvent,
   status: TrajNode['status'],
   errorCode?: string,
 ): void {
   if (node === undefined) return
+  if (status === 'error' && node.status !== 'error') state.counts.errors += 1
   node.endSeq = event.seq
   node.durationMs = Math.max(0, event.time - node.time)
   node.status = status
@@ -218,7 +245,7 @@ function close(
  * tool/subtool calls into one synthetic burst row.
  *
  * The run's members stay live: the pairing maps still hold the very objects
- * `close()` mutates when their results land, and the burst reads its totals
+ * `close(state, )` mutates when their results land, and the burst reads its totals
  * off them on demand. Nothing needs re-visiting when a folded member closes.
  */
 function push(state: FoldState, nodes: TrajNode[], node: TrajNode): void {
@@ -265,6 +292,11 @@ function push(state: FoldState, nodes: TrajNode[], node: TrajNode): void {
   nodes.push(node)
 }
 
+/** Row count after burst folding — the ledger's own length. */
+function syncRowCount(state: FoldState, nodes: TrajNode[]): void {
+  state.counts.rows = nodes.length
+}
+
 /** Fold one event into the working build. */
 function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTiming>, event: RawTrajEvent): void {
   const data = event.data as Record<string, unknown> | undefined
@@ -298,7 +330,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
         typeof reason === 'object' && reason !== null
           ? (reason as Record<string, unknown>).kind
           : undefined
-      close(open, event, kind === 'completed' ? 'ok' : 'error', typeof kind === 'string' && kind !== 'completed' ? kind : undefined)
+      close(state, open, event, kind === 'completed' ? 'ok' : 'error', typeof kind === 'string' && kind !== 'completed' ? kind : undefined)
       state.turns.delete(turn)
       state.step = undefined
       return
@@ -320,7 +352,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
       const turn = typeof data?.turn === 'number' ? data.turn : state.turn
       const step = typeof data?.step === 'number' ? data.step : (state.step ?? 0)
       const key = `${turn}:${step}`
-      close(state.steps.get(key), event, 'ok')
+      close(state, state.steps.get(key), event, 'ok')
       state.steps.delete(key)
       const slot = timing.get(key)
       if (slot !== undefined) slot.endTime = event.time
@@ -444,7 +476,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
           ? (message as Record<string, unknown>).content
           : undefined,
       )
-      close(open, event, error === undefined ? 'ok' : 'error', code)
+      close(state, open, event, error === undefined ? 'ok' : 'error', code)
       state.tools.delete(callId)
       return
     }
@@ -473,7 +505,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
       if (payload === undefined) return
       const open = state.subtools.get(payload.subCallId)
       if (open === undefined) return
-      close(open, event, payload.isError === true ? 'error' : 'ok')
+      close(state, open, event, payload.isError === true ? 'error' : 'ok')
       state.subtools.delete(payload.subCallId)
       return
     }
@@ -486,6 +518,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
         // Same retry sequence, next attempt: keep one row and accumulate.
         existing.attempts = (existing.attempts ?? 1) + 1
         existing.durationMs = (existing.durationMs ?? 0) + payload.delayMs
+        state.counts.retries += 1
         return
       }
       const node: TrajNode = {
@@ -501,6 +534,8 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
         durationMs: payload.delayMs,
       }
       state.retries.set(payload.retryId, node)
+      state.counts.retries += 1
+      state.counts.errors += 1
       push(state, nodes, node)
       return
     }
@@ -511,7 +546,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
       const open = state.retries.get(retryId)
       if (open === undefined) return
       // The bracket closes when the retried request starts; the accumulated
-      // backoff is the row's own duration, so `close()` must not overwrite it.
+      // backoff is the row's own duration, so `close(state, )` must not overwrite it.
       open.endSeq = event.seq
       open.status = 'ok'
       state.retries.delete(retryId)
@@ -542,7 +577,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
       const open = state.approvals.get(payload.id)
       if (open === undefined) return
       open.outcome = payload.outcome
-      close(open, event, isApprovalDenied(payload.outcome) ? 'error' : 'ok')
+      close(state, open, event, isApprovalDenied(payload.outcome) ? 'error' : 'ok')
       state.approvals.delete(payload.id)
       return
     }
@@ -568,7 +603,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
       const payload = readHook(event.data)
       const open = payload?.id === undefined ? undefined : state.hooks.get(payload.id)
       if (open === undefined) return
-      close(open, event, 'ok')
+      close(state, open, event, 'ok')
       state.hooks.delete(payload!.id!)
       return
     }
@@ -595,7 +630,7 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
       if (open !== undefined && payload.removed !== undefined) {
         open.outcome = `-${payload.removed}`
       }
-      close(open, event, 'ok')
+      close(state, open, event, 'ok')
       return
     }
 
@@ -685,7 +720,8 @@ function consume(state: FoldState, nodes: TrajNode[], timing: Map<string, StepTi
 
 /** An empty build, used as the identity element and for empty sessions. */
 export function emptyTrajectory(): TrajBuild {
-  return { source: [], nodes: [], timing: new Map(), state: newState() }
+  const state = newState()
+  return { source: [], nodes: [], timing: new Map(), counts: state.counts, state }
 }
 
 /**
@@ -713,13 +749,15 @@ export function extendTrajectory(
     for (let index = previous.source.length; index < raw.length; index++) {
       consume(state, nodes, timing, raw[index]!)
     }
-    return { source: raw, nodes, timing, state }
+    syncRowCount(state, nodes)
+    return { source: raw, nodes, timing, counts: state.counts, state }
   }
   const nodes: TrajNode[] = []
   const timing = new Map<string, StepTiming>()
   const state = newState()
   for (const event of raw) consume(state, nodes, timing, event)
-  return { source: raw, nodes, timing, state }
+  syncRowCount(state, nodes)
+  return { source: raw, nodes, timing, counts: state.counts, state }
 }
 
 /**

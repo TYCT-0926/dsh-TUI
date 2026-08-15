@@ -11,8 +11,8 @@ export declare function WaveBand({ band, width, cursorColumn, viewportStart, vie
     viewportEnd: number;
     /**
      * Columns containing a query match, or `undefined` when no query is active.
-     * Non-matching columns dim to dots so the match distribution across the
-     * whole session is visible at a glance.
+     * Non-matching columns drop to grey so the match distribution across the
+     * whole session is visible at a glance; the silhouette never changes.
      */
     matches?: ReadonlySet<number>;
     /** Scene clock tick. */

@@ -8,9 +8,18 @@ import type { Channel } from '../dsh-adapter/channel.js';
  * mode/hint line last. The right side of the footer shows the latest
  * transient notification (errors in red, warnings in amber — CC style).
  */
-export declare function StatusLine({ channel, selectionActive, helpOpen, }: {
+export declare function StatusLine({ channel, selectionActive, helpOpen, trajectory, }: {
     channel: Channel;
     selectionActive?: boolean;
     helpOpen?: boolean;
+    /**
+     * Live trajectory counters. Present whenever the host folds the session
+     * event log (the real Chat screen always does); absent in headless embeds,
+     * where the chip simply does not appear.
+     */
+    trajectory?: {
+        rows: number;
+        errors: number;
+    };
 }): React.JSX.Element;
 //# sourceMappingURL=StatusLine.d.ts.map

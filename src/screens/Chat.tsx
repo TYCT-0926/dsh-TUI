@@ -43,10 +43,15 @@ import { BtwPanel } from '../components/BtwPanel.js'
 import { setClipboard } from '../ink/termio/osc.js'
 import instances from '../ink/instances.js'
 import { TrajectoryScene } from './TrajectoryScene.js'
+import { extendTrajectory, type TrajBuild } from '../dsh-adapter/trajectory/index.js'
+import type { SessionEvent } from '../dsh-adapter/types.js'
 import { LoadingState } from '../components/design-system/LoadingState.js'
 import { Pane } from '../components/design-system/Pane.js'
 import { loadHistory, type HistoryEntry } from '../history.js'
 import type { SessionRecord } from '../sessionHistory.js'
+
+/** Shared empty snapshot for hosts whose channel has no event log. */
+const NO_EVENTS: readonly SessionEvent[] = []
 
 /** Row kinds the message-selection cursor can land on. */
 const SELECTABLE_KINDS = new Set<ChatRow['kind']>([
@@ -1078,6 +1083,24 @@ export function Chat({
     }
   }
 
+  /**
+   * The session's trajectory projection, folded here rather than inside the
+   * scene.
+   *
+   * Two things fall out of owning it at this level: the status-line chip can
+   * show live counters without a second fold, and opening the scene is
+   * instant because the build is already warm. The fold is incremental — it
+   * consumes only events appended since the last render — so an idle
+   * conversation pays nothing for it.
+   */
+  const trajectoryRef = React.useRef<TrajBuild | null>(null)
+  trajectoryRef.current = extendTrajectory(
+    trajectoryRef.current,
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- runtime guard: headless hosts render Chat with a partial channel
+    channel.traceEvents?.() ?? NO_EVENTS,
+  )
+  const trajectory = trajectoryRef.current
+
   // Row seeking under layout virtualization: a mounted row seeks directly;
   // an unmounted one is force-mounted first, then sought by the completion
   // effect below once its ref lands.
@@ -1736,7 +1759,7 @@ export function Chat({
   // nesting it would emit a second DEC 1049, and its unmount would drop the
   // whole app back to the main screen.
   if (sceneOpen) {
-    const scene = <TrajectoryScene channel={channel} onClose={closeScene} />
+    const scene = <TrajectoryScene channel={channel} build={trajectory} onClose={closeScene} />
     return fullscreen ? scene : <AlternateScreen>{scene}</AlternateScreen>
   }
 
@@ -1981,6 +2004,7 @@ export function Chat({
           channel={channel}
           selectionActive={selectionActive}
           helpOpen={helpOpen}
+          trajectory={trajectory.counts}
         />
       </Box>
     </Box>

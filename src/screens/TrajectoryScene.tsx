@@ -16,7 +16,6 @@ import {
   aggregate,
   burstErrors,
   columnOfIndex,
-  extendTrajectory,
   inspectNode,
   projectWave,
   type TrajBuild,
@@ -42,16 +41,31 @@ import type { HotspotSort, WaveProjection } from '../dsh-adapter/types.js'
 
 /** Inspector height in the default (unexpanded) layout. */
 const INSPECTOR_ROWS = 6
-/** Rows reserved for header, wake and hints — everything but the ledger. */
-const CHROME_ROWS = 2 + 3 + 1
+/**
+ * Rows the ledger does not get: header, tabs, the wake's two rows, one blank
+ * line under the wake, the hint line, and one blank line above it.
+ *
+ * The two blank lines are deliberate. A view that fills every row edge to edge
+ * reads as pressure regardless of how good the individual rows are; giving the
+ * chrome and the content a line of ground between them costs two rows out of
+ * thirty and buys the whole screen room to breathe.
+ */
+const CHROME_ROWS = 2 + 2 + 1 + 1 + 1
 
 export type TrajectoryView = 'timeline' | 'hotspot'
 
 export function TrajectoryScene({
   channel,
+  build,
   onClose,
 }: {
   channel: Channel
+  /**
+   * The session projection, folded by the host. Passing it in rather than
+   * folding here means the chat chrome and the scene share one build, so
+   * opening the scene costs no work at all.
+   */
+  build: TrajBuild
   /** Leave the scene and return to the conversation. */
   onClose: () => void
 }): React.ReactNode {
@@ -80,9 +94,6 @@ export function TrajectoryScene({
   const [follow, setFollow] = React.useState(true)
 
   // ── projection ───────────────────────────────────────────────────────────
-  const buildRef = React.useRef<TrajBuild | null>(null)
-  buildRef.current = extendTrajectory(buildRef.current, channel.traceEvents())
-  const build = buildRef.current
   const nodes = build.nodes
 
   const query = React.useMemo(() => parseQuery(queryText), [queryText])
@@ -119,7 +130,7 @@ export function TrajectoryScene({
   // ── geometry ─────────────────────────────────────────────────────────────
   const inspectorRows = expanded ? Math.max(4, rows - CHROME_ROWS - 3) : INSPECTOR_ROWS
   const ledgerRows = Math.max(1, rows - CHROME_ROWS - inspectorRows - 1)
-  const bandWidth = Math.max(1, columns - 2)
+  const bandWidth = Math.max(1, columns - 4)
 
   const clampedCursor = filtered.length === 0 ? 0 : Math.min(cursor, filtered.length - 1)
   const windowStart = Math.max(
@@ -397,6 +408,7 @@ export function TrajectoryScene({
         tick={tick}
         alertTick={alertTick}
       />
+      <Box height={1} flexShrink={0}><Text> </Text></Box>
       {view === 'timeline' ? (
         <>
           <Ledger
@@ -404,7 +416,7 @@ export function TrajectoryScene({
             start={windowStart}
             height={ledgerRows}
             cursor={clampedCursor}
-            width={columns - 2}
+            width={columns - 4}
             tick={tick}
             arrivalTick={arrivalTick}
             arrivalFrom={arrivalFrom}
@@ -418,7 +430,7 @@ export function TrajectoryScene({
             node={focused}
             detail={detail}
             height={inspectorRows}
-            width={columns - 2}
+            width={columns - 4}
             expanded={expanded}
             scroll={inspectScroll}
           />
@@ -427,13 +439,14 @@ export function TrajectoryScene({
         <HotspotView
           agg={agg}
           sort={sort}
-          width={columns - 2}
+          width={columns - 4}
           height={ledgerRows + inspectorRows + 1}
           cursor={hotCursor}
           tick={tick}
           switchTick={switchTick}
         />
       )}
+      <Box height={1} flexShrink={0}><Text> </Text></Box>
       <Box width="100%" height={1} flexShrink={0}>
         <Text dimColor italic wrap="truncate">
           <HintLine text={hints} />

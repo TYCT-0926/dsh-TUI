@@ -49,7 +49,15 @@ export declare function heatColor(ms: number | undefined): keyof Theme;
  * magnitude, which is the resolution a human actually acts on.
  */
 export declare function costGlyph(ms: number | undefined): string;
-/** Fixed-width badge text per row kind (4 columns, so every row aligns). */
+/**
+ * Fixed-width badge text per row kind — six columns, including one cell of
+ * padding on each side.
+ *
+ * The padding is what turns a coloured word into a pill. Background colour
+ * flush against the glyphs reads as a highlighter smudge; a cell of ground on
+ * either side reads as a chip, and chips are what let the eye group forty rows
+ * by kind without reading any of them.
+ */
 export declare const KIND_BADGE: Record<TrajKind, string>;
 /** One-character badge for the narrowest layout tier. */
 export declare const KIND_GLYPH: Record<TrajKind, string>;
@@ -72,8 +80,8 @@ export declare const KIND_BADGE_BG: Partial<Record<TrajKind, keyof Theme>>;
  * tier the row is still exactly one line.
  */
 export interface LedgerLayout {
-    /** Width of the badge column: 4 (full), 1 (glyph). */
-    readonly badge: 4 | 1;
+    /** Width of the badge column: 6 (padded pill), 1 (bare glyph). */
+    readonly badge: 6 | 1;
     /** Show the `#N` index column. */
     readonly index: boolean;
     /** Show the `→ result` preview. */

@@ -61,11 +61,30 @@ export interface TrajBuild {
     readonly nodes: TrajNode[];
     /** Per-step timing keyed `${turn}:${step}`, for the hotspot aggregate. */
     readonly timing: Map<string, StepTiming>;
+    /**
+     * Running counters, maintained O(1) per event.
+     *
+     * The status-line badge needs "how many rows, how many failed" on every
+     * chat frame; deriving that with a scan would make an idle conversation pay
+     * O(session) per repaint, which is exactly the cost the incremental fold
+     * exists to avoid.
+     */
+    readonly counts: TrajCounts;
     /** Open brackets and fold state; internal, but reused across appends. */
     readonly state: FoldState;
 }
+/** Cheap session counters the chat chrome reads every frame. */
+export interface TrajCounts {
+    /** Ledger rows, after burst folding. */
+    rows: number;
+    /** Rows that ended in failure, plus retry sequences. */
+    errors: number;
+    /** Retry attempts across the session. */
+    retries: number;
+}
 /** Mutable fold bookkeeping carried between incremental appends. */
 interface FoldState {
+    counts: TrajCounts;
     tools: Map<string, TrajNode>;
     subtools: Map<string, TrajNode>;
     steps: Map<string, TrajNode>;

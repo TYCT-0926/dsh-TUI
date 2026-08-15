@@ -104,21 +104,29 @@ export function costGlyph(ms: number | undefined): string {
   return '▁'
 }
 
-/** Fixed-width badge text per row kind (4 columns, so every row aligns). */
+/**
+ * Fixed-width badge text per row kind — six columns, including one cell of
+ * padding on each side.
+ *
+ * The padding is what turns a coloured word into a pill. Background colour
+ * flush against the glyphs reads as a highlighter smudge; a cell of ground on
+ * either side reads as a chip, and chips are what let the eye group forty rows
+ * by kind without reading any of them.
+ */
 export const KIND_BADGE: Record<TrajKind, string> = {
-  turn: 'TURN',
-  step: 'STEP',
-  user: 'USR ',
-  assistant: 'AST ',
-  thinking: 'THK ',
-  tool: 'TOOL',
-  subtool: 'SUB ',
-  retry: 'RTY ',
-  approval: 'APR ',
-  compaction: 'CMP ',
-  system: 'SYS ',
-  context: 'CTX ',
-  todo: 'TODO',
+  turn: ' TURN ',
+  step: ' STEP ',
+  user: ' USR  ',
+  assistant: ' AST  ',
+  thinking: ' THK  ',
+  tool: ' TOOL ',
+  subtool: ' SUB  ',
+  retry: ' RTY  ',
+  approval: ' APR  ',
+  compaction: ' CMP  ',
+  system: ' SYS  ',
+  context: ' CTX  ',
+  todo: ' TODO ',
 }
 
 /** One-character badge for the narrowest layout tier. */
@@ -187,8 +195,8 @@ export const KIND_BADGE_BG: Partial<Record<TrajKind, keyof Theme>> = {
  * tier the row is still exactly one line.
  */
 export interface LedgerLayout {
-  /** Width of the badge column: 4 (full), 1 (glyph). */
-  readonly badge: 4 | 1
+  /** Width of the badge column: 6 (padded pill), 1 (bare glyph). */
+  readonly badge: 6 | 1
   /** Show the `#N` index column. */
   readonly index: boolean
   /** Show the `→ result` preview. */
@@ -205,9 +213,10 @@ export interface LedgerLayout {
  *   survives even on a pathologically narrow terminal.
  */
 export function ledgerLayout(columns: number): LedgerLayout {
-  // Fixed costs: spine (2) + duration (7) + gaps.
-  if (columns >= 110) return { badge: 4, index: true, outcome: true, detail: Math.max(12, columns - 68) }
-  if (columns >= 90) return { badge: 4, index: true, outcome: true, detail: Math.max(12, columns - 60) }
-  if (columns >= 70) return { badge: 4, index: false, outcome: false, detail: Math.max(12, columns - 22) }
+  // Fixed costs: spine (2) + clock (8) + pill (6) + cost (1) + duration (7),
+  // plus one cell of gap between each.
+  if (columns >= 110) return { badge: 6, index: true, outcome: true, detail: Math.max(12, columns - 72) }
+  if (columns >= 90) return { badge: 6, index: true, outcome: true, detail: Math.max(12, columns - 64) }
+  if (columns >= 70) return { badge: 6, index: false, outcome: false, detail: Math.max(12, columns - 26) }
   return { badge: 1, index: false, outcome: false, detail: Math.max(12, columns - 16) }
 }

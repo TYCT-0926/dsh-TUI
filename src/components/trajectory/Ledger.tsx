@@ -13,6 +13,7 @@ import {
   ledgerLayout,
 } from '../../trajectory/format.js'
 import { arrive, mix } from '../../trajectory/motion.js'
+import { stringWidth } from '../../ink/stringWidth.js'
 import { getTheme } from '../../theme.js'
 import type { TrajNode } from '../../dsh-adapter/types.js'
 
@@ -112,28 +113,60 @@ export function Ledger({
         const isNew = index >= arrivalFrom && arriving > 0
         const duration = node.burst === undefined ? node.durationMs : burstDurationMs(node.burst)
 
-        // ── turn boundary: a rule, not a row ────────────────────────────────
-        if (node.kind === 'turn') {
-          const tone = failed ? 'error' : running ? 'success' : 'inactive'
-          // Idle between turns is wall-clock the session spent waiting on the
-          // human, and it is invisible everywhere else — the durations only
-          // ever account for work. Surfacing it here is what makes the clock
+        // ── structural rows are RULES, not rows ────────────────────────────
+        //
+        // A ledger with five hundred entries needs chapters. Turn and step
+        // are the session's own headings, and a heading that looks like a body
+        // row makes the whole list read as one undifferentiated stream. Two
+        // rule weights give the hierarchy the eye needs: heavy for a turn,
+        // hairline for a step, everything else a normal row. It also removes a
+        // redundancy — a `STEP` badge next to the label `step 2` said the same
+        // thing twice.
+        if (node.kind === 'turn' || node.kind === 'step') {
+          const isTurn = node.kind === 'turn'
+          const right = `${duration === undefined ? '' : formatDuration(duration)}${failed ? ' ✗' : ''}`
+
+          // A step is a quiet row, not a rule. Steps are frequent — three or
+          // four per screen — and a full-width dashed line each drew more
+          // attention than the work between them. Only the turn, which is the
+          // session's actual chapter break, gets a rule.
+          if (!isTurn) {
+            return (
+              <Box key={`${node.seq}:step`} flexDirection="row" width="100%" height={1} flexShrink={0} gap={1}>
+                <Box flexShrink={0}>
+                  <Text color="subtle">{`${focused ? '▸' : ' '}╵`}</Text>
+                </Box>
+                <Box flexGrow={1} flexShrink={1} overflow="hidden">
+                  <Text color={focused ? 'suggestion' : 'subtle'} wrap="truncate">{node.label}</Text>
+                </Box>
+                <Box flexShrink={0}>
+                  <Text color={heatColor(duration)}>{costGlyph(duration)}</Text>
+                </Box>
+                <Box flexShrink={0} justifyContent="flex-end" width={7}>
+                  <Text color={heatColor(duration)}>{right}</Text>
+                </Box>
+              </Box>
+            )
+          }
+
+          const tone = failed ? 'error' : running ? 'success' : 'inactiveShimmer'
+          // Idle before a turn is wall-clock the session spent waiting on the
+          // human, and it is invisible everywhere else — every duration only
+          // ever accounts for work. Surfacing it here is what makes the clock
           // column add up.
           const previous = rows[index - 1]
           const idle =
-            previous === undefined
-              ? 0
-              : node.time - (previous.time + (previous.durationMs ?? 0))
+            previous === undefined ? 0 : node.time - (previous.time + (previous.durationMs ?? 0))
           const idleText = idle >= IDLE_FLOOR_MS ? `  ⋯ ${formatDuration(idle)}` : ''
-          const right = `${duration === undefined ? '' : formatDuration(duration)}${failed ? ' ✗' : ''}`
-          const left = `${focused ? '▸' : ' '}── ${node.label}${idleText} `
-          const fill = Math.max(2, width - left.length - right.length - 2)
+          const head = `${focused ? '▸' : ' '}━━ ${node.label}${idleText} `
+          const fill = Math.max(2, width - stringWidth(head) - stringWidth(right) - 2)
           return (
             <Box key={`${node.seq}:turn`} width="100%" height={1} flexShrink={0}>
-              <Text color={tone} bold={focused}>
-                {`${focused ? '▸' : ' '}── ${node.label}`}
+              <Text color={tone} bold>
+                {`${focused ? '▸' : ' '}━━ ${node.label}`}
                 <Text color="subtle">{idleText}</Text>
-                <Text color="subtle">{` ${'─'.repeat(fill)} ${right}`}</Text>
+                <Text color="inactive">{` ${'━'.repeat(fill)} `}</Text>
+                <Text color={failed ? 'error' : heatColor(duration)}>{right}</Text>
               </Text>
             </Box>
           )
@@ -141,7 +174,7 @@ export function Ledger({
 
         const spineColor = failed ? 'error' : running ? 'success' : node.seed === true ? 'subtle' : 'inactive'
         const badgeBg = KIND_BADGE_BG[node.kind]
-        const badge = layout.badge === 4 ? KIND_BADGE[node.kind] : KIND_GLYPH[node.kind]
+        const badge = layout.badge === 6 ? KIND_BADGE[node.kind] : KIND_GLYPH[node.kind]
 
         // Label and detail share one budget so a long tool name never pushes
         // the duration column off the row.

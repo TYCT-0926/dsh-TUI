@@ -32,6 +32,7 @@ const [{ PassThrough, Writable }, React, { Terminal: XTerm }, { render }, { Traj
     import('../src/screens/Chat.js'),
     import('../src/dsh-adapter/questions.js'),
   ])
+const traj = await import('../src/dsh-adapter/trajectory/index.js')
 const instances = (await import('../src/ink/instances.js')).default
 
 const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
@@ -180,7 +181,11 @@ function makeChannel(overrides: Record<string, unknown> = {}): Record<string, un
 {
   const { stdout, stdin, screen, term } = makeHarness(120, 30)
   const instance = await render(
-    React.createElement(TrajectoryScene, { channel: makeChannel() as never, onClose: () => {} }),
+    React.createElement(TrajectoryScene, {
+      channel: makeChannel() as never,
+      build: traj.buildTrajectory(EVENTS as never),
+      onClose: () => {},
+    }),
     { stdout: stdout as never, stdin: stdin as never, stderr: stdout as never, exitOnCtrlC: false, patchConsole: false },
   )
   await sleep(160)

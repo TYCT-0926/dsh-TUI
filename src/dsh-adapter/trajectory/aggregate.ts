@@ -101,14 +101,12 @@ export function sortRows(rows: readonly HotspotRow[], sort: HotspotSort): Hotspo
  *   read. Pure: nothing here mutates the build.
  */
 export function aggregate(build: TrajBuild, sort: HotspotSort = 'duration'): TrajAggregate {
-  const { nodes, timing } = build
+  const { nodes, timing, counts } = build
 
   const tools = new Map<string, Bucket>()
   const turns = new Map<string, Bucket>()
 
   let calls = 0
-  let errors = 0
-  let retries = 0
   let toolMs = 0
   let retryMs = 0
   let steps = 0
@@ -121,10 +119,7 @@ export function aggregate(build: TrajBuild, sort: HotspotSort = 'duration'): Tra
     slot.count += 1
     slot.totalMs += node.durationMs ?? 0
     toolMs += node.durationMs ?? 0
-    if (node.status === 'error') {
-      errors += 1
-      slot.error = true
-    }
+    if (node.status === 'error') slot.error = true
   })
 
   for (let index = 0; index < nodes.length; index++) {
@@ -142,14 +137,7 @@ export function aggregate(build: TrajBuild, sort: HotspotSort = 'duration'): Tra
         steps += 1
         break
       case 'retry':
-        retries += node.attempts ?? 1
         retryMs += node.durationMs ?? 0
-        errors += 1
-        break
-      case 'approval':
-      case 'system':
-      case 'compaction':
-        if (node.status === 'error') errors += 1
         break
       default:
         break
@@ -180,9 +168,9 @@ export function aggregate(build: TrajBuild, sort: HotspotSort = 'duration'): Tra
   const model: HotspotRow[] = []
   if (decodeMs > 0) model.push({ label: 'decode', totalMs: decodeMs, count: ttftSamples, tokens: tokens.output, firstIndex: 0 })
   if (ttftSamples > 0) model.push({ label: 'ttft', totalMs: ttftMs, count: ttftSamples, tokens: 0, firstIndex: 0 })
-  if (retryMs > 0 || retries > 0) {
+  if (retryMs > 0 || counts.retries > 0) {
     const firstRetry = nodes.findIndex(node => node.kind === 'retry')
-    model.push({ label: 'retry', totalMs: retryMs, count: retries, tokens: 0, error: true, firstIndex: Math.max(0, firstRetry) })
+    model.push({ label: 'retry', totalMs: retryMs, count: counts.retries, tokens: 0, error: true, firstIndex: Math.max(0, firstRetry) })
   }
 
   const first = nodes[0]
@@ -194,8 +182,12 @@ export function aggregate(build: TrajBuild, sort: HotspotSort = 'duration'): Tra
     steps,
     rows: nodes.length,
     calls,
-    errors,
-    retries,
+    // Failure and retry counts come from the fold's own O(1) counters rather
+    // than being recomputed here: the status-line chip reads them on every
+    // chat frame, and two independent tallies of the same session would
+    // eventually disagree — which is exactly what they did.
+    errors: counts.errors,
+    retries: counts.retries,
     spanMs,
     toolMs,
     decodeMs,
