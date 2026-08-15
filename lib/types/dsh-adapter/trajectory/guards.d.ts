@@ -65,6 +65,8 @@ export interface RetryPayload {
     readonly retryId: string;
     readonly turn?: number;
     readonly step?: number;
+    /** Provider whose request failed — shown as an inspector fact. */
+    readonly provider?: string;
     readonly retry: number;
     readonly maxRetries?: number;
     readonly delayMs: number;

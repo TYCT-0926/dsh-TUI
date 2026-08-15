@@ -10,6 +10,7 @@
  */
 export { buildTrajectory, emptyTrajectory, extendTrajectory, type StepTiming, type TrajBuild, } from './projection.js';
 export { aggregate, forEachCall, sortRows } from './aggregate.js';
+export { inspectNode, type InspectDetail, type InspectSection } from './inspect.js';
 export { channelOf, columnOfIndex, dominantChannel, projectWave } from './wave.js';
 export { BURST_MIN, burstDurationMs, burstErrors, burstRunning, HOTSPOT_SORTS, previewText, WAVE_PROJECTIONS, type HotspotRow, type HotspotSort, type TrajAggregate, type TrajBurst, type TrajKind, type TrajNode, type TrajStatus, type TrajTokens, type TrajTotals, type WaveBand, type WaveBucket, type WaveChannel, type WaveProjection, } from './types.js';
 //# sourceMappingURL=index.d.ts.map

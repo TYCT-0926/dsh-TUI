@@ -88,6 +88,8 @@ export interface RetryPayload {
   readonly retryId: string
   readonly turn?: number
   readonly step?: number
+  /** Provider whose request failed — shown as an inspector fact. */
+  readonly provider?: string
   readonly retry: number
   readonly maxRetries?: number
   readonly delayMs: number
@@ -107,6 +109,7 @@ export function readRetry(data: unknown): RetryPayload | undefined {
     retryId,
     turn: num(data, 'turn'),
     step: num(data, 'step'),
+    provider: str(data, 'provider'),
     retry,
     maxRetries: num(data, 'maxRetries'),
     delayMs,

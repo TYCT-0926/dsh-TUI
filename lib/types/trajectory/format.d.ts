@@ -1,0 +1,72 @@
+/**
+ * Trajectory formatting — durations, clocks, badges and heat.
+ *
+ * Presentation only, and deliberately in the UI layer rather than beside the
+ * projection: these decisions are about a terminal's width and palette, not
+ * about what the session log means.
+ */
+import type { Theme } from '../theme.js';
+import type { TrajKind, TrajNode } from '../dsh-adapter/types.js';
+/** `HH:MM:SS` local wall-clock of an epoch-ms timestamp. */
+export declare function formatClock(time: number): string;
+/**
+ * Compact duration: `82ms` / `1.4s` / `2m05s` / `1h04m`.
+ *
+ * Every form is at most six columns wide, so the ledger's duration column
+ * never reflows when a fast call is followed by a slow one.
+ */
+export declare function formatDuration(ms: number): string;
+/** Compact token count: `840` / `12.4k` / `1.1M`. */
+export declare function formatTokens(count: number): string;
+/**
+ * Heat colour for a duration cell.
+ *
+ * The point of the ledger is usually to find the slow thing, so the duration
+ * column encodes magnitude as colour: anything under a second recedes, tens
+ * of seconds warn, minutes shout. Reading a column of numbers is work; seeing
+ * one red cell is not.
+ */
+export declare function heatColor(ms: number | undefined): keyof Theme;
+/** Fixed-width badge text per row kind (4 columns, so every row aligns). */
+export declare const KIND_BADGE: Record<TrajKind, string>;
+/** One-character badge for the narrowest layout tier. */
+export declare const KIND_GLYPH: Record<TrajKind, string>;
+/**
+ * Badge foreground per kind. Backgrounds come from {@link KIND_BADGE_BG} — the
+ * pair reads as a pill, which carries far better in a dense ledger than
+ * coloured text alone.
+ */
+export declare const KIND_FG: Record<TrajKind, keyof Theme>;
+/**
+ * Badge background per kind, or `undefined` for kinds that read better
+ * unfilled (structural rows, which should recede behind the work rows).
+ */
+export declare const KIND_BADGE_BG: Partial<Record<TrajKind, keyof Theme>>;
+/** Status colour for the row's own duration and spine. */
+export declare function statusColor(node: TrajNode): keyof Theme | undefined;
+/**
+ * Ledger column budget at a given terminal width.
+ *
+ * Columns are dropped whole rather than letting a row wrap: a wrapped ledger
+ * row destroys the alignment that makes the whole view scannable, so at every
+ * tier the row is still exactly one line.
+ */
+export interface LedgerLayout {
+    /** Width of the badge column: 4 (full), 1 (glyph). */
+    readonly badge: 4 | 1;
+    /** Show the `#N` index column. */
+    readonly index: boolean;
+    /** Show the `→ result` preview. */
+    readonly outcome: boolean;
+    /** Characters available to the label + detail preview. */
+    readonly detail: number;
+}
+/**
+ * Resolve the column budget for one terminal width.
+ *
+ * @param columns - Terminal width in cells.
+ * @returns The tier's budget; `detail` is never below 12 so the label itself
+ *   survives even on a pathologically narrow terminal.
+ */
+export declare function ledgerLayout(columns: number): LedgerLayout;
+//# sourceMappingURL=format.d.ts.map
