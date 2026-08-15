@@ -6,8 +6,34 @@
  * about what the session log means.
  */
 
+import { stringWidth } from '../ink/stringWidth.js'
 import type { Theme } from '../theme.js'
 import type { TrajKind, TrajNode } from '../dsh-adapter/types.js'
+
+/**
+ * Truncate to a terminal DISPLAY width, CJK-aware (a wide char costs two
+ * columns). Used where the caller must control the cut precisely: Ink's own
+ * `wrap="truncate"` appends its ellipsis as soon as the content is as wide as
+ * its box rather than wider, which silently eats the last character of a
+ * right-aligned group that was laid out at exactly its natural width.
+ *
+ * @param text - Plain text (no ANSI).
+ * @param maxWidth - Column budget, ellipsis included.
+ * @returns `text` unchanged when it fits, otherwise a cut ending in `…`.
+ */
+export function truncateWidth(text: string, maxWidth: number): string {
+  if (maxWidth <= 0) return ''
+  if (stringWidth(text) <= maxWidth) return text
+  let width = 0
+  let out = ''
+  for (const char of text) {
+    const charWidth = stringWidth(char)
+    if (width + charWidth > maxWidth - 1) break
+    width += charWidth
+    out += char
+  }
+  return `${out}…`
+}
 
 /** `HH:MM:SS` local wall-clock of an epoch-ms timestamp. */
 export function formatClock(time: number): string {

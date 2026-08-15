@@ -7,6 +7,18 @@
  */
 import type { Theme } from '../theme.js';
 import type { TrajKind, TrajNode } from '../dsh-adapter/types.js';
+/**
+ * Truncate to a terminal DISPLAY width, CJK-aware (a wide char costs two
+ * columns). Used where the caller must control the cut precisely: Ink's own
+ * `wrap="truncate"` appends its ellipsis as soon as the content is as wide as
+ * its box rather than wider, which silently eats the last character of a
+ * right-aligned group that was laid out at exactly its natural width.
+ *
+ * @param text - Plain text (no ANSI).
+ * @param maxWidth - Column budget, ellipsis included.
+ * @returns `text` unchanged when it fits, otherwise a cut ending in `…`.
+ */
+export declare function truncateWidth(text: string, maxWidth: number): string;
 /** `HH:MM:SS` local wall-clock of an epoch-ms timestamp. */
 export declare function formatClock(time: number): string;
 /**

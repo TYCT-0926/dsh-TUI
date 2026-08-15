@@ -9,7 +9,8 @@ import { Inspector } from '../components/trajectory/Inspector.js'
 import { HotspotView, hotspotRows } from '../components/trajectory/HotspotView.js'
 import { applyQuery, parseQuery } from '../trajectory/query.js'
 import { MOTION_TICK_MS } from '../trajectory/motion.js'
-import { formatDuration, formatTokens } from '../trajectory/format.js'
+import { formatDuration, formatTokens, truncateWidth } from '../trajectory/format.js'
+import { stringWidth } from '../ink/stringWidth.js'
 import { t } from '../i18n.js'
 import {
   aggregate,
@@ -299,63 +300,69 @@ export function TrajectoryScene({
   })
 
   // ── header ───────────────────────────────────────────────────────────────
+  //
+  // Both chrome rows are composed as ONE pre-measured line each rather than as
+  // a flex row of groups. Flex plus `wrap="truncate"` proved unreliable here:
+  // a right-hand group laid out at its natural width lost its last character,
+  // and under other splits the overflow reflowed onto the row below — which
+  // pushes every region beneath it down and breaks the fixed geometry the
+  // whole scene depends on. Padding to an exact column count is deterministic,
+  // CJK-aware, and cheap (two strings per frame).
   const { totals } = agg
-  // Every fixed region declares `flexShrink={0}`. Without it, a viewport one
-  // row short of the laid-out content makes yoga collapse the FIRST flexible
-  // child to zero height — the header silently vanished instead of the ledger
-  // giving up a row.
+
+  /** Left text, a computed gap, right text — clipped to `width` columns. */
+  const spread = (left: string, right: string, width: number): { left: string; gap: string; right: string } => {
+    const rightText = truncateWidth(right, Math.max(0, width - 4))
+    const room = width - stringWidth(rightText)
+    const leftText = truncateWidth(left, Math.max(0, room - 1))
+    return {
+      left: leftText,
+      gap: ' '.repeat(Math.max(1, room - stringWidth(leftText))),
+      right: rightText,
+    }
+  }
+
+  const totalsText =
+    t('traj-totals', { turns: totals.turns, steps: totals.rows }) +
+    (totals.errors > 0 ? ` \u00b7 ${t('traj-errors', { n: totals.errors })}` : '') +
+    (totals.retries > 0 ? ` \u00b7 ${t('traj-retries', { n: totals.retries })}` : '') +
+    ` \u00b7 ${formatDuration(totals.spanMs)}`
+
+  const headerLine = spread(
+    `\u2726 ${t('traj-title')}  ${channel.sessionTitle ?? channel.cwd}`,
+    totalsText,
+    bandWidth,
+  )
   const header = (
-    <Box flexDirection="row" width="100%" gap={2} flexShrink={0}>
-      <Box flexShrink={0}>
-        <Text color="claude" bold>
-          ✦ {t('traj-title')}
-        </Text>
-      </Box>
-      <Box flexGrow={1} flexShrink={1} overflow="hidden">
-        <Text wrap="truncate" color="subtle">
-          {channel.sessionTitle ?? channel.cwd}
-        </Text>
-      </Box>
-      <Box flexShrink={0}>
-        <Text color="subtle">
-          {t('traj-totals', { turns: totals.turns, steps: totals.rows })}
-          {totals.errors > 0 ? <Text color="error">{` · ${t('traj-errors', { n: totals.errors })}`}</Text> : ''}
-          {totals.retries > 0 ? <Text color="warning">{` · ${t('traj-retries', { n: totals.retries })}`}</Text> : ''}
-          {` · ${formatDuration(totals.spanMs)}`}
-        </Text>
-      </Box>
+    <Box width="100%" height={1} flexShrink={0}>
+      <Text>
+        <Text color="claude" bold>{`\u2726 ${t('traj-title')}`}</Text>
+        <Text color="subtle">{headerLine.left.slice((`\u2726 ${t('traj-title')}`).length)}</Text>
+        <Text>{headerLine.gap}</Text>
+        <Text color={totals.errors > 0 ? 'error' : 'subtle'}>{headerLine.right}</Text>
+      </Text>
     </Box>
   )
 
+  const axisLabel = view === 'hotspot' ? t(`traj-sort-${sort}`) : t(`traj-proj-${projection}`)
+  const tabsLeft =
+    `${view === 'timeline' ? '\u25cf' : '\u25cb'} ${t('traj-tab-timeline')}  ` +
+    `${view === 'hotspot' ? '\u25cf' : '\u25cb'} ${t('traj-tab-hotspot')}`
+  const queryText_ =
+    queryOpen || !query.empty
+      ? `   / ${queryText}${queryOpen ? '\u258c' : ''}  ${t('traj-matches', { n: filtered.length, total: nodes.length })}`
+      : ''
+  const tabsLine = spread(tabsLeft + queryText_, axisLabel, bandWidth)
   const tabs = (
-    <Box flexDirection="row" width="100%" gap={2} flexShrink={0}>
-      <Box flexShrink={0} flexDirection="row" gap={2}>
+    <Box width="100%" height={1} flexShrink={0}>
+      <Text>
         <Text color={view === 'timeline' ? 'permission' : 'subtle'} bold={view === 'timeline'}>
-          {view === 'timeline' ? '●' : '○'} {t('traj-tab-timeline')}
+          {tabsLine.left.slice(0, tabsLeft.length)}
         </Text>
-        <Text color={view === 'hotspot' ? 'permission' : 'subtle'} bold={view === 'hotspot'}>
-          {view === 'hotspot' ? '●' : '○'} {t('traj-tab-hotspot')}
-        </Text>
-      </Box>
-      <Box flexGrow={1} flexShrink={1} overflow="hidden">
-        {queryOpen || !query.empty ? (
-          <Text wrap="truncate">
-            <Text color="permission">/ </Text>
-            <Text color="suggestion">{queryText}</Text>
-            {queryOpen ? <Text color="subtle">▌</Text> : ''}
-            <Text color="subtle">
-              {`  ${t('traj-matches', { n: filtered.length, total: nodes.length })}`}
-            </Text>
-          </Text>
-        ) : (
-          <Text> </Text>
-        )}
-      </Box>
-      <Box flexShrink={0}>
-        <Text color="subtle">
-          {view === 'hotspot' ? t(`traj-sort-${sort}`) : t(`traj-proj-${projection}`)}
-        </Text>
-      </Box>
+        <Text color="suggestion">{tabsLine.left.slice(tabsLeft.length)}</Text>
+        <Text>{tabsLine.gap}</Text>
+        <Text color="subtle">{tabsLine.right}</Text>
+      </Text>
     </Box>
   )
 
@@ -424,7 +431,7 @@ export function TrajectoryScene({
           switchTick={switchTick}
         />
       )}
-      <Box width="100%" flexShrink={0}>
+      <Box width="100%" height={1} flexShrink={0}>
         <Text dimColor italic wrap="truncate">
           <HintLine text={hints} />
           {totals.tokens.input > 0 ? (
