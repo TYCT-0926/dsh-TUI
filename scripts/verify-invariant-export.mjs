@@ -3,15 +3,15 @@
  *
  * `lib/invariant.js` is the one checked-in artifact `pnpm build` does not
  * produce (see docs/contributing.md): the `./invariant` entry is a separately
- * bundled runtime export, kept aligned with `src/invariant.ts` by hand. The
+ * bundled runtime export, kept aligned with `src/dsh-adapter/invariant.ts` by hand. The
  * split is the DSH ecosystem's shape, not this repo's improvisation — every
  * sibling package (dsh-agent, dsh-commands, dsh-skill, dsh-session, dsh-llm,
- * dsh-terminal) declares the identical `{types: ./lib/types/invariant.d.ts,
+ * dsh-terminal) declares the identical `{types: ./lib/types/dsh-adapter/invariant.d.ts,
  * default: ./lib/invariant.js}` pair — so the exception is one to hold to,
  * and to hold in place, rather than one to remove.
  *
  * The hand step was missed once: the 20260811 cordis rescope swept the
- * package name in `src/invariant.ts` to `@deepseek-ai/dsh-cc-tui`, the bundle
+ * package name in `src/dsh-adapter/invariant.ts` to `@deepseek-ai/dsh-cc-tui`, the bundle
  * was corrected for rc.6, and the two disagreed for weeks with nothing able
  * to notice. A convention documented in prose but not enforced by code is not
  * an invariant; this script is the enforcement:
@@ -59,7 +59,11 @@ if (failed > 0) {
 
 // ---- both modules: the shipped bundle and the tsc output it mirrors
 const bundle = await import(pathToFileURL(bundlePath).href)
-const compiled = await import(pathToFileURL(join(repoRoot, 'lib', 'types', 'invariant.js')).href)
+// Derive the compiled module from the manifest's own `types` entry rather
+// than hardcoding a path: `src/invariant.ts` moved under `src/dsh-adapter/`
+// once already, and a gate that has to be edited whenever the tree moves is
+// the kind of hand-maintained coupling this script exists to remove.
+const compiled = await import(pathToFileURL(typesPath.replace(/\.d\.ts$/, '.js')).href)
 
 const surfaceOf = mod => Object.keys(mod).filter(key => key !== 'default').sort().join(',')
 check(

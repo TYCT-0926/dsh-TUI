@@ -44,7 +44,7 @@ jobs:
       - run: git diff --exit-code -- lib
 
       # ./invariant 导出契约：lib/invariant.js 是唯一不由 pnpm build 产生的
-      # 入库产物（同一份文档记为已知例外，靠手工与 src/invariant.ts 对齐），
+      # 入库产物（同一份文档记为已知例外，靠手工与 src/dsh-adapter/invariant.ts 对齐），
       # 上面的闸门覆盖不到它。这条手工约定失守过一次，两侧 PACKAGE_NAME 分歧
       # 数周无人可察，故行为化补上。
       - run: node scripts/verify-invariant-export.mjs
