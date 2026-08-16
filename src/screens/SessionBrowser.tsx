@@ -132,10 +132,20 @@ export function SessionBrowser({
 
   const focused = sessionAt(view.rows, focus)
 
+  // Where the cursor is RIGHT NOW, including moves made earlier in this same
+  // tick. A held arrow key (or a paste) delivers several key events from one
+  // stdin chunk, and every one of them runs before React re-renders — so a
+  // handler that read the position from the render closure would compute all
+  // of them from the same starting row and keep only the last, silently
+  // dropping every move but one.
+  const focusRef = React.useRef(focus)
+  focusRef.current = focus
+
   /** Move the cursor by rows, then store the session it landed on. */
   const step = (by: 1 | -1, times = 1): void => {
-    let next = focus
+    let next = focusRef.current
     for (let taken = 0; taken < times; taken++) next = moveSelection(view.rows, next, by)
+    focusRef.current = next
     const landed = sessionAt(view.rows, next)
     if (landed !== undefined) setFocusId(landed.id)
   }
@@ -171,8 +181,18 @@ export function SessionBrowser({
   topRef.current = windowTop
   const visible = view.rows.slice(windowTop, windowEnd(view.rows, windowTop, listHeight))
 
-  const applyFilters = (patch: Partial<BrowserFilters>): void => {
-    setFilters(current => ({ ...current, ...patch }))
+  /**
+   * Change the view.
+   *
+   * Takes a function of the CURRENT filters rather than a ready-made patch,
+   * for the same reason the cursor keeps a ref: several key events can be
+   * handled before React re-renders, and a patch built from the render
+   * closure would compute each of them from the same starting filters — two
+   * toggles in one chunk cancelling to one, or typed characters overwriting
+   * each other instead of accumulating.
+   */
+  const applyFilters = (update: (current: BrowserFilters) => Partial<BrowserFilters>): void => {
+    setFilters(current => ({ ...current, ...update(current) }))
     topRef.current = 0
   }
 
@@ -265,16 +285,16 @@ export function SessionBrowser({
       // Esc backs out one layer at a time: a live query first, the screen
       // second. Closing on the first Esc would discard a search the user is
       // still refining.
-      if (filters.query.length > 0) applyFilters({ query: '' })
+      if (filters.query.length > 0) applyFilters(() => ({ query: '' }))
       else onClose()
     } else if (key.tab) {
       setPreviewOpen(open => !open)
     } else if (isMod(key) && input === 'a') {
-      applyFilters({ allProjects: !filters.allProjects })
+      applyFilters(current => ({ allProjects: !current.allProjects }))
     } else if (isMod(key) && input === 'b') {
-      applyFilters({ branchOnly: !filters.branchOnly })
+      applyFilters(current => ({ branchOnly: !current.branchOnly }))
     } else if (isMod(key) && input === 's') {
-      applyFilters({ showSubagents: !filters.showSubagents })
+      applyFilters(current => ({ showSubagents: !current.showSubagents }))
     } else if (isMod(key) && input === 'r' && focused !== undefined) {
       setRenameText(focused.title.text)
       setMode('rename')
@@ -283,9 +303,15 @@ export function SessionBrowser({
     } else if (isMod(key) && input === 'x' && view.emptyCount > 0) {
       setMode('confirm-clean')
     } else if (key.backspace || key.delete) {
-      applyFilters({ query: filters.query.slice(0, -1) })
+      applyFilters(current => ({ query: current.query.slice(0, -1) }))
     } else if (!isMod(key) && !key.meta && !key.super && input && !key.return) {
-      applyFilters({ query: filters.query + input.replace(/[\r\n]+/g, '') })
+      // Only real characters reach the query. Anything else the terminal
+      // delivers — an unbound control byte, a chord this screen does not
+      // claim, the newlines inside a paste — would otherwise be typed into
+      // the search box invisibly, leaving a filter that matches nothing for
+      // no reason the user can see.
+      const typed = input.replace(/\p{Cc}/gu, '')
+      if (typed.length > 0) applyFilters(current => ({ query: current.query + typed }))
     }
   })
 

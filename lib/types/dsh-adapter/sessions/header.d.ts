@@ -47,12 +47,4 @@ export declare function readHeader(value: unknown): RawSessionHeader | undefined
  * @returns The session's kind.
  */
 export declare function classify(header: RawSessionHeader): SessionKind;
-/**
- * Whether a kind names a conversation a person had, as opposed to work the
- * model delegated to itself.
- *
- * Forks count: a rewound branch is the user's own conversation continued from
- * an earlier point.
- */
-export declare function isConversation(kind: SessionKind): boolean;
 //# sourceMappingURL=header.d.ts.map

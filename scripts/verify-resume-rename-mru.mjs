@@ -79,9 +79,6 @@ const agent = {
   status: 'idle',
   session: { id: 'live-session', seq: 0, events: [] },
   ctx: { on: () => () => {} },
-  // bindAgent reads agent.options.model to decide whether the display route
-  // should seed the selection (upstream 9455596); the stub predates it.
-  options: {},
 }
 const channel = createChannel(ctx, agent, { model: 'm', cwd: CWD, provider: 'p', activity: false })
 

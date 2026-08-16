@@ -10,7 +10,7 @@
  * @module @deepseek-harness-tui/dsh-tui/sessions
  */
 
-export { classify, isConversation, readHeader, type RawSessionHeader } from './header.js'
+export { classify, readHeader, type RawSessionHeader } from './header.js'
 
 export { digestSession, previewSession } from './digest.js'
 

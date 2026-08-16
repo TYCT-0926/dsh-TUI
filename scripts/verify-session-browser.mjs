@@ -259,6 +259,26 @@ check('the count reflects only what is shown', /3 sessions/.test(flat(s)), flat(
 check('metadata rides under each title', /2\.0 KB/.test(flat(s)) && /deepseek-v4-pro/.test(flat(s)))
 check('focus starts on the MRU top row (gamma)', /❯\s*gamma/.test(s), s.split('\n').filter(l => l.includes('❯')).join('|'))
 
+// ── held arrow keys ─────────────────────────────────────────────────────
+// A held key (or a paste) arrives as several key events out of ONE stdin
+// chunk, all handled before React re-renders. Every one of them must move
+// the cursor; a handler reading its start position from the render closure
+// would compute them all from the same row and keep only the last.
+await windowed(() => stdin.write('\x1b[B\x1b[B'), 450) // two ↓ in one chunk
+s = screen()
+check('two arrows in one chunk move two rows, not one', /❯\s*alpha/.test(s), s.split('\n').filter(l => l.includes('❯')).join('|'))
+await windowed(() => stdin.write('\x1b[A\x1b[A'), 450) // two ↑ back to the top
+check('and back again', /❯\s*gamma/.test(screen()))
+// Control bytes this screen does not claim must never be typed into the
+// search box. A chord arriving as raw C0 (here two ctrl+s in one chunk, which
+// the parser hands over as literal control characters rather than as the
+// shortcut) used to land in the query and leave a filter matching nothing,
+// with nothing on screen to explain why the list went empty.
+await windowed(() => stdin.write('\x13\x13'), 500)
+// An empty query still shows the placeholder; a polluted one would not.
+check('unclaimed control bytes never reach the search box', /Type to search/.test(flat(screen())), flat(screen()).slice(0, 200))
+check('and the list is untouched by them', /gamma/.test(screen()) && /alpha/.test(screen()) && /3 sessions/.test(flat(screen())))
+
 // ── search ──────────────────────────────────────────────────────────────
 await windowed(() => stdin.write('alph'), 400)
 s = screen()
