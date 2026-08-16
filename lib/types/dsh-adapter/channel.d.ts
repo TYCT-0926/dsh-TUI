@@ -493,6 +493,18 @@ export interface Channel {
      *  the service is absent). */
     listSubagents(): Promise<string[]>;
     /**
+     * Dispose the host-registry entries this channel registered (skill slash
+     * commands).
+     *
+     * `commandService.register` binds the registration to ITS own context, not
+     * the caller's, so the entries outlive this channel unless released: after a
+     * launcher recompose the stale registrations would still answer, but the
+     * fresh channel would see the names taken and stop managing them, freezing
+     * the menu. The plugin calls this from its teardown effect, where the real
+     * cordis context lives.
+     */
+    releaseContributions(): void;
+    /**
      * The live agent's session event log (immutable snapshot, replaced on
      * every append — dsh-session caches the frozen array) — the `/trace`
      * trajectory view's data source. Screens already re-render on `version`
@@ -689,6 +701,8 @@ export interface ChannelState {
     doctorInfo(): string[];
     /** Subagent rows (CC's /agents). */
     listSubagents(): Promise<string[]>;
+    /** See {@link Channel.releaseContributions}. */
+    releaseContributions(): void;
     /** Live session event log (see the public Channel type, `/trace`). */
     traceEvents(): readonly SessionEvent[];
 }

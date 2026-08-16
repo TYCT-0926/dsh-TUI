@@ -403,6 +403,10 @@ declare const dict: {
         readonly zh: "工具 {{n}}";
         readonly en: "Tools {{n}}";
     };
+    readonly 'skill-unavailable': {
+        readonly zh: "技能 {{name}} 已不可用或未开放用户直调";
+        readonly en: "Skill {{name}} is gone or not user-invocable";
+    };
     readonly 'skill-audit-prompt': {
         readonly zh: "请使用 audit 技能对当前项目做一次全面的代码审计，找出安全、正确性与质量问题。";
         readonly en: "Use the audit skill to do a thorough code audit of the current project, finding security, correctness and quality issues.";
