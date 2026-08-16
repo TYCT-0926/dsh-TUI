@@ -11,6 +11,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { InvariantInstaller } from '@deepseek-ai/dsh-invariants'
 
+// The npm name this package publishes under (`package.json` `name`): the key
+// `invariants.register` reserves ownership by, and the same name the shipped
+// `lib/invariant.js` bundle carries. scripts/verify-invariant-export.mjs holds
+// the three together — they drifted apart once, unnoticed for weeks.
 const PACKAGE_NAME = '@deepseek-harness-tui/dsh-tui'
 
 /** Cordis companion plugin name. */
