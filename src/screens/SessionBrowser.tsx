@@ -26,8 +26,21 @@ import type { PreviewEntry, SessionSummary } from '../dsh-adapter/sessions/index
 /** What the browser is doing with the focused row. */
 type BrowserMode = 'list' | 'confirm-delete' | 'rename' | 'confirm-clean'
 
-/** Chrome lines the layout always spends: header, three rules, hint row. */
-const CHROME_LINES = 6
+/**
+ * Rows the layout cannot do without: the header, the search box, the hints.
+ * Everything else — the rules, the list itself — yields before these do.
+ */
+const MANDATORY_LINES = 3
+
+/**
+ * The three horizontal rules, in the order they earn their row.
+ *
+ * 0 frames the header, 2 lifts the hints off the content, 1 separates the
+ * search box — and that last one is the least load-bearing, so on a terminal
+ * too short for all three it is the one that goes. Rules are decoration; a
+ * row of content, or the hint line telling the user which keys exist, is not.
+ */
+const RULE_PRIORITY = [0, 2, 1] as const
 /** Terminal width below which the preview replaces the list instead of joining it. */
 const SPLIT_MIN_COLUMNS = 100
 
@@ -238,13 +251,18 @@ export function SessionBrowser({
   const soloPreview = previewOpen && columns < SPLIT_MIN_COLUMNS
   const previewWidth = splitPreview ? Math.min(56, Math.floor(columns * 0.42)) : columns
   const listWidth = Math.max(20, columns - (splitPreview ? previewWidth : 0))
-  // Every optional row between the list and the hints costs the list a line.
+  // Height is distributed, never assumed. Mandatory rows first, then a row
+  // for each region the current state actually needs, then the rules while
+  // rows remain, and the list gets what is left — which may be nothing.
+  //
+  // The arithmetic below is the whole vertical layout: the regions sum to
+  // exactly `rows` at every height down to MANDATORY_LINES. Anything that
+  // assumed a fixed chrome would overflow on a short terminal, and the row
+  // that falls off the bottom is always the last one — the hints.
   const extraLines = (mode === 'list' ? 0 : 1) + (notice === undefined ? 0 : 1)
-  // The list takes exactly what the chrome leaves, and zero when there is
-  // nothing left. Forcing a minimum here would make the regions below it sum
-  // to more rows than the terminal has, which pushes the hint line off the
-  // bottom on a short terminal instead of simply showing fewer sessions.
-  const listHeight = Math.max(0, rows - CHROME_LINES - extraLines)
+  const ruleBudget = Math.max(0, Math.min(RULE_PRIORITY.length, rows - MANDATORY_LINES - extraLines))
+  const rules = new Set<number>(RULE_PRIORITY.slice(0, ruleBudget))
+  const listHeight = Math.max(0, rows - MANDATORY_LINES - extraLines - rules.size)
 
   const windowTop = anchorTop(view.rows, focus, listHeight, topRef.current)
   topRef.current = windowTop
@@ -462,9 +480,9 @@ export function SessionBrowser({
         <Text color="remember" bold>{header.left}</Text>
         <Text dimColor>{`${' '.repeat(header.gap)}${header.right}`}</Text>
       </Box>
-      <Box flexShrink={0}>
+      {rules.has(0) && (<Box flexShrink={0}>
         <Divider width={columns} />
-      </Box>
+      </Box>)}
       <Box flexShrink={0}>
         <SearchBox
           query={tailWidth(filters.query, inputBudget)}
@@ -474,9 +492,9 @@ export function SessionBrowser({
           borderless
         />
       </Box>
-      <Box flexShrink={0}>
+      {rules.has(1) && (<Box flexShrink={0}>
         <Divider width={columns} />
-      </Box>
+      </Box>)}
 
       <Box flexGrow={1} flexShrink={1}>
         {!soloPreview && (
@@ -555,9 +573,9 @@ export function SessionBrowser({
         </Box>
       )}
 
-      <Box flexShrink={0}>
+      {rules.has(2) && (<Box flexShrink={0}>
         <Divider width={columns} />
-      </Box>
+      </Box>)}
       <Box flexShrink={0}>
         <Text dimColor italic>
           <HintLine text={hint} />

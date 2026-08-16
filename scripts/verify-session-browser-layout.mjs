@@ -124,7 +124,9 @@ function frame(term) {
 
 // Widths span the two-column split threshold (100) and the narrow tiers;
 // heights span "comfortable" down to "barely enough for the chrome".
-const SIZES = [[180, 44], [120, 30], [110, 34], [99, 24], [80, 20], [60, 14], [46, 10], [40, 8]]
+// 6 rows is the floor by construction: the chrome is six lines, so that is
+// the shortest terminal where every region still has somewhere to be.
+const SIZES = [[180, 44], [120, 30], [110, 34], [99, 24], [80, 20], [60, 14], [46, 10], [40, 8], [52, 6]]
 const KEYS = [
   ['\t', 'preview on'],
   ['\x13', 'runs revealed'],
@@ -183,6 +185,17 @@ for (const lang of ['zh', 'en']) {
       await sleep(150)
       inspect(label)
     }
+
+    // Maximizing the window mid-browse is an ordinary thing to do, and every
+    // measurement above is taken against a width the component re-reads each
+    // render — so the layout has to hold at the NEW size without remounting.
+    const wide = [Math.min(200, cols + 60), Math.min(50, rows + 12)]
+    term.resize(wide[0], wide[1])
+    stdout.columns = wide[0]
+    stdout.rows = wide[1]
+    stdout.emit('resize')
+    await sleep(260)
+    inspect(`resized to ${wide[0]}x${wide[1]}`)
 
     instance.unmount()
     term.dispose()

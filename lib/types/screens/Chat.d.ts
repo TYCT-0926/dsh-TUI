@@ -2,11 +2,7 @@ import React from 'react';
 import { type Channel } from '../dsh-adapter/channel.js';
 import type { QuestionStore } from '../dsh-adapter/questions.js';
 import { ApprovalStore } from '../dsh-adapter/approvals.js';
-<<<<<<< HEAD
 export declare function Chat({ channel, questionStore, approvalStore, onExit, onUpdate, fullscreen, trajectorySeen: trajectorySeenProp, }: {
-=======
-export declare function Chat({ channel, questionStore, approvalStore, onExit, onUpdate, fullscreen, }: {
->>>>>>> 480aec9 (feat(resume): 会话浏览器——按 header 分类、定界读取、revision 索引)
     channel: Channel;
     questionStore: QuestionStore;
     /**
@@ -19,9 +15,9 @@ export declare function Chat({ channel, questionStore, approvalStore, onExit, on
     /** Update the installed package and restart the current TUI process. */
     onUpdate?: () => void;
     /**
-<<<<<<< HEAD
      * True when the host already wrapped this tree in `<AlternateScreen>`
-     * (`fullscreen: true`). The trajectory scene needs this: entering the alt
+     * (`fullscreen: true`). Both full-screen surfaces need this — the trajectory
+     * scene and the session browser: entering the alt
      * screen a second time is harmless, but the inner unmount's DEC 1049 exit
      * would drop the whole app back to the main screen.
      */
@@ -35,17 +31,5 @@ export declare function Chat({ channel, questionStore, approvalStore, onExit, on
      * persisted flag when the host does not supply one.
      */
     trajectorySeen?: boolean;
-=======
-     * Whether the host already runs the whole app in the alternate screen
-     * (`fullscreen: true` in cordis.yml).
-     *
-     * Full-screen surfaces inside Chat need it: nesting a second
-     * `<AlternateScreen>` under one that is already active looks fine until the
-     * inner one unmounts, at which point its `?1049l` returns the ENTIRE app to
-     * the main screen. The host knows which mode it started in; Chat cannot ask
-     * the terminal.
-     */
-    fullscreen?: boolean;
->>>>>>> 480aec9 (feat(resume): 会话浏览器——按 header 分类、定界读取、revision 索引)
 }): React.JSX.Element;
 //# sourceMappingURL=Chat.d.ts.map
