@@ -46,4 +46,3 @@ export type AskUserQuestionPanelProps = {
     readonly onCancel: () => void;
 };
 export declare function AskUserQuestionPanel({ question, position, total, answered, onAnswer, onCancel, }: AskUserQuestionPanelProps): React.ReactNode;
-//# sourceMappingURL=AskUserQuestionPanel.d.ts.map

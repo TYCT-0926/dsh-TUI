@@ -88,4 +88,3 @@ export type ProviderWizardOutcome = 'added' | 'cancelled' | 'failed';
  * all asks complete before the first side effect.
  */
 export declare function runProviderWizard(deps: ProviderWizardDeps): Promise<ProviderWizardOutcome>;
-//# sourceMappingURL=providerWizard.d.ts.map

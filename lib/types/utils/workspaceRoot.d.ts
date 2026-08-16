@@ -18,4 +18,3 @@
  * encloses it.
  */
 export declare function resolveSessionCwd(configured: string | undefined, start?: string): string;
-//# sourceMappingURL=workspaceRoot.d.ts.map

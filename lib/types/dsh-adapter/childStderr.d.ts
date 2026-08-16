@@ -60,4 +60,3 @@ export interface ChildStderrReporter {
  * a cooldown so a failing reconnect loop can't spam the status area.
  */
 export declare function createChildStderrReporter(notify: ChildStderrNotify, options?: ChildStderrReporterOptions): ChildStderrReporter;
-//# sourceMappingURL=childStderr.d.ts.map

@@ -77,4 +77,3 @@ export declare class ApprovalStore {
      */
     settleAll(outcome: ApprovalOutcome): void;
 }
-//# sourceMappingURL=approvals.d.ts.map

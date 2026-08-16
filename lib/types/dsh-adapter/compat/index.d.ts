@@ -19,4 +19,3 @@
  * @module @deepseek-harness-tui/dsh-tui/compat
  */
 export { appendSessionTitle, deleteSessionLog, ensureLegacySessionEventTypes, LEGACY_SESSION_EVENT_TYPES, readSessionTitleFromLog, sessionsRoots, } from './sessionLog.js';
-//# sourceMappingURL=index.d.ts.map

@@ -16,4 +16,3 @@
  * @module @deepseek-harness-tui/dsh-tui/working-activity
  */
 export * from 'dsh-working-activity';
-//# sourceMappingURL=working-activity.d.ts.map

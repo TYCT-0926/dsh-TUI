@@ -18,4 +18,3 @@ export type ApprovalPanelProps = {
     readonly onDecide: (outcome: 'allowed-once' | 'rejected') => void;
 };
 export declare function ApprovalPanel({ approval, onDecide }: ApprovalPanelProps): React.ReactNode;
-//# sourceMappingURL=ApprovalPanel.d.ts.map

@@ -23,4 +23,3 @@ export declare function ResumePicker({ sessions, focusIndex, currentSessionId, m
     mode: ResumePickerMode;
     renameText: string;
 }): React.ReactNode;
-//# sourceMappingURL=ResumePicker.d.ts.map

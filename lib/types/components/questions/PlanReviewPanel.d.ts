@@ -36,4 +36,3 @@ export type PlanReviewPanelProps = {
     readonly onCancel: () => void;
 };
 export declare function PlanReviewPanel({ question, onAnswer, onCancel, }: PlanReviewPanelProps): React.ReactNode;
-//# sourceMappingURL=PlanReviewPanel.d.ts.map

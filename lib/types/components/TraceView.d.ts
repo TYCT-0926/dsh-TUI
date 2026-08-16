@@ -17,4 +17,3 @@ export declare function TraceView({ entries, cursor, filter, }: {
     /** Active type filter (drives the header label). */
     filter: TraceFilter;
 }): React.ReactNode;
-//# sourceMappingURL=TraceView.d.ts.map

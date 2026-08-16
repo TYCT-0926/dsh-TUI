@@ -112,4 +112,3 @@ export declare function buildCmdExeSpawn(command: string, args: readonly string[
  * the draft, e.g. from Shift+Enter) survive untouched.
  */
 export declare function editInExternalEditor(draft: string): Promise<EditorOutcome>;
-//# sourceMappingURL=externalEditor.d.ts.map

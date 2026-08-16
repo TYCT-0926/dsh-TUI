@@ -6,4 +6,3 @@ export declare function WorkspacePicker({ targets, focusIndex, currentCwd, }: {
     focusIndex: number;
     currentCwd: string;
 }): React.ReactNode;
-//# sourceMappingURL=WorkspacePicker.d.ts.map

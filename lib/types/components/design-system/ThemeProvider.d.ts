@@ -8,4 +8,3 @@ export declare function ThemeProvider({ children, theme, }: {
  * `[themeName, setTheme]` — the first element matches Claude Code's shape.
  */
 export declare function useTheme(): [string, (name: string) => boolean];
-//# sourceMappingURL=ThemeProvider.d.ts.map

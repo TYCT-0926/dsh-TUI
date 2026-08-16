@@ -12,4 +12,3 @@ export declare function WorkspaceFlowPicker({ title, choices, focusIndex, busy, 
         placeholder?: string;
     } | null;
 }): React.ReactNode;
-//# sourceMappingURL=WorkspaceFlowPicker.d.ts.map

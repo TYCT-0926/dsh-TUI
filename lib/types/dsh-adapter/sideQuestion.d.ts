@@ -35,4 +35,3 @@ export declare function runSideQuestion(params: {
     /** Cancellation: aborting yields `{answer: null}` with no error text. */
     signal?: AbortSignal;
 }): Promise<SideQuestionOutcome>;
-//# sourceMappingURL=sideQuestion.d.ts.map

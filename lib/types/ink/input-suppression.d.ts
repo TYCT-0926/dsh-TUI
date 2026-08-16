@@ -17,4 +17,3 @@
 export declare function suppressInputFor(ms: number): void;
 /** True while the post-handoff suppression window is open. */
 export declare function isInputSuppressed(): boolean;
-//# sourceMappingURL=input-suppression.d.ts.map

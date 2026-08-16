@@ -15,4 +15,3 @@ type Props = {
  */
 export declare function GlimmerMessage({ message, mode, messageColor, glimmerIndex, flashOpacity, shimmerColor, stalledIntensity, }: Props): React.ReactNode;
 export {};
-//# sourceMappingURL=GlimmerMessage.d.ts.map

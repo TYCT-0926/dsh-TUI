@@ -4,4 +4,3 @@
  * the input (callers pass plain text).
  */
 export declare function truncateToWidth(text: string, maxWidth: number): string;
-//# sourceMappingURL=truncateToWidth.d.ts.map

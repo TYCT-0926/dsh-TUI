@@ -815,4 +815,3 @@ export interface MentionExpansion {
  */
 export declare function expandMentions(fs: MentionFs | undefined, cwd: string, text: string, attachments?: MentionAttachments, stagedImages?: ReadonlyMap<string, MentionImageBlock['attachment']>): Promise<MentionExpansion>;
 export {};
-//# sourceMappingURL=channel.d.ts.map

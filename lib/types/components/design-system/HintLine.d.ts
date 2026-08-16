@@ -9,4 +9,3 @@ import React from 'react';
 export declare function HintLine({ text }: {
     text: string;
 }): React.ReactNode;
-//# sourceMappingURL=HintLine.d.ts.map

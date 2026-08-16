@@ -33,4 +33,3 @@ export declare function hueToRgb(hue: number): RGBColor;
  * 同一输入的解析结果会被缓存（含 null），之后取用零成本。
  */
 export declare function parseRGB(colorStr: string): RGBColor | null;
-//# sourceMappingURL=spinnerUtils.d.ts.map

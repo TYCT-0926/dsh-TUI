@@ -42,4 +42,3 @@ export declare const RENAMED_ENV: Readonly<Record<string, string>>;
  * @returns The legacy names found, in RENAMED_ENV order.
  */
 export declare function detectLegacyEnv(env?: NodeJS.ProcessEnv): string[];
-//# sourceMappingURL=paths.d.ts.map

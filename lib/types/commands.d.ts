@@ -101,4 +101,3 @@ export declare function filterCommands(input: string, list?: readonly LocalComma
  * children, so PromptInput never needs feature- or plugin-specific cases.
  */
 export declare function completeCommands(input: string, roots?: readonly LocalCommand[], children?: CommandChildren): CommandCompletion[];
-//# sourceMappingURL=commands.d.ts.map

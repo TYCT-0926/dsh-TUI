@@ -24,4 +24,3 @@ export declare class TuiCommandTreeRuntime extends Service {
     descriptions(root: string): LocalizedDescriptions | undefined;
 }
 export default TuiCommandTreeRuntime;
-//# sourceMappingURL=command-trees.d.ts.map

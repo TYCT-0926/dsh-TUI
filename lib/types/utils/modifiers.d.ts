@@ -40,4 +40,3 @@ export declare function isPlainReturn(key: {
 export declare function isPlainReturnInput(input: string, key: Parameters<typeof isPlainReturn>[0] & {
     isPasted?: boolean;
 }): boolean;
-//# sourceMappingURL=modifiers.d.ts.map

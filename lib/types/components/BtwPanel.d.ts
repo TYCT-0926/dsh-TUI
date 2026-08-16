@@ -13,4 +13,3 @@ export declare function BtwPanel({ question, answer, error, streaming, onClose, 
     onClose: () => void;
     onCopy: () => void;
 }): React.ReactNode;
-//# sourceMappingURL=BtwPanel.d.ts.map

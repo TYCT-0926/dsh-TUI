@@ -17,4 +17,3 @@ export declare function OverlayAbove({ children, maxHeight, }: {
     /** 防止面板高过可用区域时探出帧顶（短会话 + 高列表）。 */
     maxHeight?: number | undefined;
 }): React.ReactNode;
-//# sourceMappingURL=OverlayAbove.d.ts.map

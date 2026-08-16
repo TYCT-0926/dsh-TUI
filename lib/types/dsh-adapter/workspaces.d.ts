@@ -115,4 +115,3 @@ export declare function localWorkspaceUri(path: string): string;
 /** Resolve a native absolute path or the standard file URL form. */
 export declare function parseLocalWorkspaceReference(reference: string): TuiWorkspaceTarget | undefined;
 export default TuiWorkspaceRuntime;
-//# sourceMappingURL=workspaces.d.ts.map

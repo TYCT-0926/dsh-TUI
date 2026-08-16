@@ -112,4 +112,3 @@ export declare function _resetLinuxPasteCache(): void;
  *   with line endings normalized.
  */
 export declare function formatClipboardInsert(content: ClipboardContent): string;
-//# sourceMappingURL=clipboard.d.ts.map

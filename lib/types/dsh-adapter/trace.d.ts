@@ -76,4 +76,3 @@ export declare function formatDuration(ms: number): string;
  * (wide chars count 2 via the ink core's stringWidth). Appends `…` when cut.
  */
 export declare function truncateWidth(text: string, maxWidth: number): string;
-//# sourceMappingURL=trace.d.ts.map

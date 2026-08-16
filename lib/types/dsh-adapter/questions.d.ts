@@ -102,4 +102,3 @@ export declare class QuestionStore {
     /** Harness-side interruption — abort signal fired or plugin teardown. */
     private fail;
 }
-//# sourceMappingURL=questions.d.ts.map

@@ -260,4 +260,3 @@ export declare const ENABLE_WIN32_INPUT_MODE: string;
  * CSI ? 9001 l
  */
 export declare const DISABLE_WIN32_INPUT_MODE: string;
-//# sourceMappingURL=csi.d.ts.map

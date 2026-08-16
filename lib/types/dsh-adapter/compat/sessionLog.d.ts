@@ -83,4 +83,3 @@ export declare function appendSessionTitle(sessionId: string, title: string): 'a
  * @returns 'deleted', or 'unavailable' when the log is absent.
  */
 export declare function deleteSessionLog(sessionId: string): 'deleted' | 'unavailable';
-//# sourceMappingURL=sessionLog.d.ts.map

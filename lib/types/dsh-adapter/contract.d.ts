@@ -17,4 +17,3 @@ export declare function installedUpstreamVersions(): Record<string, string | und
  * release line. Empty array = the running install matches the contract.
  */
 export declare function upstreamDrift(): UpstreamDriftEntry[];
-//# sourceMappingURL=contract.d.ts.map

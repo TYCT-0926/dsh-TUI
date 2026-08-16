@@ -12,4 +12,3 @@ export declare function EffortSlider({ options, focusIndex, currentId, }: {
     focusIndex: number;
     currentId: string | undefined;
 }): React.ReactNode;
-//# sourceMappingURL=EffortSlider.d.ts.map

@@ -37,4 +37,3 @@ export declare function touchSession(sessionId: string): void;
  * @param sessionId - Session id to forget.
  */
 export declare function forgetSession(sessionId: string): void;
-//# sourceMappingURL=sessionHistory.d.ts.map

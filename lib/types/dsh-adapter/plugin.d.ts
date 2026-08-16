@@ -47,4 +47,3 @@ export declare function isExitResumable(deps: {
     liveAgent: Agent | undefined;
     startupAgent: Agent;
 }): boolean;
-//# sourceMappingURL=plugin.d.ts.map

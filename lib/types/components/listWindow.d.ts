@@ -23,4 +23,3 @@ export declare function listWindow(heights: readonly number[], focusIndex: numbe
     start: number;
     end: number;
 };
-//# sourceMappingURL=listWindow.d.ts.map

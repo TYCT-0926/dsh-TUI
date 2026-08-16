@@ -26,4 +26,3 @@ export declare function resolveSessionModes(raw: readonly SessionModeSpec[] | un
 /** Display name: explicit `label` > built-in i18n (`mode-default`/
  *  `mode-plan`/`mode-full` for those ids) > the raw id. */
 export declare function modeDisplayName(spec: SessionModeSpec): string;
-//# sourceMappingURL=sessionModes.d.ts.map

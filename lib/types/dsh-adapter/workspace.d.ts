@@ -19,4 +19,3 @@ import type { SessionId } from '@deepseek-ai/dsh-session';
  * takes the durable attach path.
  */
 export declare function attachSessionToWorkspace(ctx: Context, cwd: string, sessionId: SessionId): Promise<boolean>;
-//# sourceMappingURL=workspace.d.ts.map

@@ -4,4 +4,3 @@ import React from 'react';
  * Claude Code's `InterruptedByUser.tsx`.
  */
 export declare function InterruptedByUser(): React.ReactNode;
-//# sourceMappingURL=InterruptedByUser.d.ts.map

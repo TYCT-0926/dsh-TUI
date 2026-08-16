@@ -11,4 +11,3 @@ export declare function cmdEscapeCommand(command: string): string;
  * parse the line a second time).
  */
 export declare function cmdEscapeArgument(arg: string, doubleEscapeMetaChars?: boolean): string;
-//# sourceMappingURL=shellQuote.d.ts.map
