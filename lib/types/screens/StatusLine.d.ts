@@ -8,18 +8,21 @@ import type { Channel } from '../dsh-adapter/channel.js';
  * mode/hint line last. The right side of the footer shows the latest
  * transient notification (errors in red, warnings in amber — CC style).
  */
-export declare function StatusLine({ channel, selectionActive, helpOpen, trajectory, }: {
+export declare function StatusLine({ channel, selectionActive, helpOpen, unreadFailures, }: {
     channel: Channel;
     selectionActive?: boolean;
     helpOpen?: boolean;
     /**
-     * Live trajectory counters. Present whenever the host folds the session
-     * event log (the real Chat screen always does); absent in headless embeds,
-     * where the chip simply does not appear.
+     * Count of failures the user has not looked at yet.
+     *
+     * Deliberately NOT a permanent readout. A chip that is always present and
+     * always says the same thing is invisible within a day, and a live step
+     * counter is both unactionable and a source of constant repaints. This badge
+     * appears only when the session has something wrong that has not been seen,
+     * and disappears once the trajectory has been opened — the appearance is
+     * itself the message. Discovery of the key lives in the startup tip line;
+     * the moment-of-failure prompt lives in a transient notification.
      */
-    trajectory?: {
-        rows: number;
-        errors: number;
-    };
+    unreadFailures?: number;
 }): React.JSX.Element;
 //# sourceMappingURL=StatusLine.d.ts.map

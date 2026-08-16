@@ -125,6 +125,9 @@ const LIVE_EVENTS = [
   { type: 'tool/call', seq: 9002, time: T0 + 9_000_200, data: { turn: 4, step: 1, callId: 'live', name: 'long_task', arguments: '{}' } },
 ]
 
+/** Notifications posted by the screen under test, in order. */
+const notices: string[] = []
+
 function makeChannel(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: 0,
@@ -160,7 +163,7 @@ function makeChannel(overrides: Record<string, unknown> = {}): Record<string, un
     submit: (): void => {},
     cancel: (): void => {},
     clear: (): void => {},
-    notify: (): void => {},
+    notify: (text: string): void => { notices.push(text) },
     listModels: () => Promise.resolve([]),
     listSessions: () => [],
     setResumeTarget: (): void => {},
@@ -369,6 +372,52 @@ function makeChannel(overrides: Record<string, unknown> = {}): Record<string, un
 
   stdin.write('q')
   await sleep(120)
+  instance.unmount()
+  instances.delete(process.stdout)
+  term.dispose()
+}
+
+// ───────────────────────── part C: the chat-side entry ─────────────────────
+
+{
+  // The trajectory has to be findable from the conversation, and the design
+  // splits that across three channels so none of them is permanent clutter:
+  // the startup tip teaches the key once, a transient notice fires at the
+  // moment a session first breaks, and an unread badge persists only while
+  // there is unseen breakage. This block pins all three.
+  notices.length = 0
+  const { stdout, stdin, screen, term } = makeHarness(120, 34, 200)
+  const instance = await render(
+    React.createElement(Chat, {
+      channel: makeChannel({
+        traceEvents: () => EVENTS,
+        rows: [{ id: 0, kind: 'assistant', text: 'done', time: T0 }],
+      }) as never,
+      questionStore: new QuestionStore() as never,
+      onExit: () => {},
+      fullscreen: false,
+    }),
+    { stdout: stdout as never, stdin: stdin as never, stderr: stdout as never, exitOnCtrlC: false, patchConsole: false },
+  )
+  for (const value of instances.values()) instances.set(process.stdout, value)
+  await sleep(500)
+
+  const startup = screen()
+  check('the startup tip teaches the trajectory key', /ctrl\+t|⌘t/.test(startup), '')
+
+  check('a failing session posts exactly one notice', notices.length === 1, `${notices.length}: ${notices[0] ?? ''}`)
+  check('the notice names the key', /ctrl\+t|⌘t/.test(notices[0] ?? ''), notices[0] ?? '')
+
+  check('unseen failures show as a badge', /● ?\d+/.test(screen()), '')
+
+  // Opening the scene marks them seen; closing must leave the badge gone.
+  stdin.write('\x14')
+  await sleep(300)
+  stdin.write('q')
+  await sleep(300)
+  check('the badge clears once the trajectory has been opened', !/● ?\d+/.test(screen()), '')
+  check('the notice does not repeat', notices.length === 1, `${notices.length}`)
+
   instance.unmount()
   instances.delete(process.stdout)
   term.dispose()

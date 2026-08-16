@@ -811,6 +811,10 @@ declare const dict: {
         readonly zh: "自动补全";
         readonly en: "autocomplete";
     };
+    readonly 'logo-tip-trace': {
+        readonly zh: "会话轨迹";
+        readonly en: "trajectory";
+    };
     readonly 'input-sent-after-turn': {
         readonly zh: "已发送，当前回合结束后处理";
         readonly en: "Sent, processed after the current turn";
@@ -1751,6 +1755,10 @@ declare const dict: {
     readonly 'traj-empty': {
         readonly zh: "暂无轨迹事件";
         readonly en: "No trajectory events yet";
+    };
+    readonly 'traj-notice-failure': {
+        readonly zh: "本次会话出现 {{n}} 次失败 · {{key}} 查看轨迹";
+        readonly en: "{{n}} failure(s) this session · {{key}} to open the trajectory";
     };
 };
 export type I18nKey = keyof typeof dict;

@@ -249,6 +249,7 @@ const dict = {
   'logo-tip-model': { zh: '切换模型', en: 'switch model' },
   'logo-tip-help': { zh: '查看命令', en: 'view commands' },
   'logo-tip-tab': { zh: '自动补全', en: 'autocomplete' },
+  'logo-tip-trace': { zh: '会话轨迹', en: 'trajectory' },
 
   // ── components/PromptInput.tsx ──────────────────────────────────────
   'input-sent-after-turn': { zh: '已发送，当前回合结束后处理', en: 'Sent, processed after the current turn' },
@@ -562,6 +563,10 @@ const dict = {
     en: '**j/k** page · **enter/esc** collapse · **q** exit',
   },
   'traj-empty': { zh: '暂无轨迹事件', en: 'No trajectory events yet' },
+  'traj-notice-failure': {
+    zh: '本次会话出现 {{n}} 次失败 · {{key}} 查看轨迹',
+    en: '{{n}} failure(s) this session · {{key}} to open the trajectory',
+  },
 } as const
 
 export type I18nKey = keyof typeof dict

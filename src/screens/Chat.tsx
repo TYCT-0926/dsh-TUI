@@ -283,6 +283,12 @@ export function Chat({
   const closeScene = React.useCallback(() => {
     setSceneOpen(false)
   }, [])
+
+  /** Open the scene and mark every failure so far as seen. */
+  const openScene = React.useCallback(() => {
+    seenFailuresRef.current = trajectoryRef.current?.counts.errors ?? 0
+    setSceneOpen(true)
+  }, [])
   /** Startup context panel: expanded by header click or Ctrl+T. */
   const [loadedContextOpen, setLoadedContextOpen] = React.useState(false)
   /** `/` transcript search (less-style incsearch, ported from CC's REPL). */
@@ -676,7 +682,7 @@ export function Chat({
         // `/trace` is kept as the discoverable spelling of Ctrl+T: the
         // command menu is where a user finds out the trajectory exists.
         setHelpOpen(false)
-        setSceneOpen(true)
+        openScene()
         return true
       case 'help':
         setHelpOpen(true)
@@ -1100,6 +1106,28 @@ export function Chat({
     channel.traceEvents?.() ?? NO_EVENTS,
   )
   const trajectory = trajectoryRef.current
+
+  /**
+   * Failures the user has not looked at.
+   *
+   * `seenFailuresRef` is set to the current total whenever the trajectory is
+   * opened, so the badge behaves like unread mail: it appears when something
+   * breaks and clears when the evidence has been seen. A one-shot transient
+   * notice fires the first time a session accumulates a failure — that is the
+   * moment the trajectory is worth mentioning, and mentioning it then is worth
+   * more than printing the key on every frame forever.
+   */
+  const seenFailuresRef = React.useRef(0)
+  const noticedFailureRef = React.useRef(false)
+  const unreadFailures = Math.max(0, trajectory.counts.errors - seenFailuresRef.current)
+  React.useEffect(() => {
+    if (unreadFailures === 0 || noticedFailureRef.current || sceneOpen) return
+    noticedFailureRef.current = true
+    channel.notify(
+      t('traj-notice-failure', { n: unreadFailures, key: `${modLabel}t` }),
+      { color: 'warning', timeoutMs: 6000 },
+    )
+  }, [unreadFailures, sceneOpen, channel])
 
   // Row seeking under layout virtualization: a mounted row seeks directly;
   // an unmounted one is force-mounted first, then sought by the completion
@@ -1663,7 +1691,7 @@ export function Chat({
       // before the first message (see the render below), so the binding was
       // dead for the whole rest of a session. The panel keeps its header
       // click-to-toggle; the key now has a meaning that always applies.
-      setSceneOpen(true)
+      openScene()
       return
     }
     if (isMod(key) && input === 'r' && !helpOpen) {
@@ -2004,7 +2032,7 @@ export function Chat({
           channel={channel}
           selectionActive={selectionActive}
           helpOpen={helpOpen}
-          trajectory={trajectory.counts}
+          unreadFailures={unreadFailures}
         />
       </Box>
     </Box>
