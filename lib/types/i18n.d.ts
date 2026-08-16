@@ -1203,6 +1203,18 @@ declare const dict: {
         readonly zh: "正在读取会话…";
         readonly en: "Reading sessions…";
     };
+    readonly 'session-list-failed': {
+        readonly zh: "无法读取会话列表 · {{err}}";
+        readonly en: "Could not read the session list · {{err}}";
+    };
+    readonly 'session-resume-refused': {
+        readonly zh: "无法恢复这个会话——原因已记录在对话里（模型正在工作时无法切换）";
+        readonly en: "That session could not be resumed — the reason is in the conversation (switching is refused while the model is working)";
+    };
+    readonly 'session-resume-failed': {
+        readonly zh: "恢复会话失败 · {{err}}";
+        readonly en: "Resuming the session failed · {{err}}";
+    };
     readonly 'session-when-now': {
         readonly zh: "刚刚";
         readonly en: "just now";
@@ -1294,6 +1306,14 @@ declare const dict: {
     readonly 'session-hint-list': {
         readonly zh: "**Enter** 恢复 · Tab 预览 · {{mod}}a 全部项目（{{projects}}） · {{mod}}s 子运行（{{runs}}） · {{mod}}b 本分支 · {{mod}}r 重命名 · {{mod}}d 删除 · {{mod}}x 清空壳 · Esc 退出";
         readonly en: "**Enter** resume · Tab preview · {{mod}}a all projects ({{projects}}) · {{mod}}s runs ({{runs}}) · {{mod}}b this branch · {{mod}}r rename · {{mod}}d delete · {{mod}}x clean · Esc exit";
+    };
+    readonly 'session-hint-list-mid': {
+        readonly zh: "**Enter** 恢复 · Tab 预览 · {{mod}}a 全部项目 · {{mod}}s 子运行 · {{mod}}r 重命名 · {{mod}}d 删除 · Esc 退出";
+        readonly en: "**Enter** resume · Tab preview · {{mod}}a projects · {{mod}}s runs · {{mod}}r rename · {{mod}}d delete · Esc exit";
+    };
+    readonly 'session-hint-list-short': {
+        readonly zh: "**Enter** 恢复 · Tab 预览 · Esc 退出";
+        readonly en: "**Enter** resume · Tab preview · Esc exit";
     };
     readonly 'hint-confirm-exit': {
         readonly zh: "**Enter** 确认 · Esc 退出";

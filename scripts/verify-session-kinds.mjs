@@ -26,7 +26,7 @@ import assert from 'node:assert/strict'
 const { classify, readHeader } = await import('../lib/types/dsh-adapter/sessions/header.js')
 const { buildView, anchorTop, windowEnd, moveSelection, seekSelectable, sessionAt, DEFAULT_FILTERS } =
   await import('../lib/types/sessions/view.js')
-const { formatWhen, formatBytes, truncateWidth, wrapWidth, formatProject, kindMark, titleColor } =
+const { formatWhen, formatBytes, truncateWidth, wrapWidth, formatProject, kindMark, titleColor, spreadRow, tailWidth } =
   await import('../lib/types/sessions/format.js')
 const { setLang } = await import('../lib/types/i18n.js')
 setLang('en')
@@ -303,6 +303,40 @@ check('latin prefers a word boundary', wrapWidth('alpha beta gamma', 11), ['alph
 check('a single long token still makes progress', wrapWidth('aaaaaaaaaa', 4), ['aaaa', 'aaaa', 'aa'])
 check('newlines in the source are honoured', wrapWidth('one\ntwo', 10), ['one', 'two'])
 check('a zero width wraps to nothing rather than looping', wrapWidth('text', 0), [])
+
+// The header's arithmetic, pinned directly. This is the layer where a
+// character count passes in English and overflows in Chinese, so the check is
+// exhaustive over both scripts and every width the row can be given.
+{
+  const stringWidth = (await import('../lib/types/ink/stringWidth.js')).stringWidth
+  const LEFTS = ['', ' Resume session', ' 恢复会话', ' 恢复会话 Resume', '很长很长很长很长很长很长很长很长的标题']
+  const RIGHTS = ['', '3 sessions', '8 个会话 · 29 个子运行已折叠 · 15 个空会话', 'mixed 混合 text 文本 here 这里']
+  let worst = 'ok'
+  for (const left of LEFTS) {
+    for (const right of RIGHTS) {
+      for (let columns = 0; columns <= 80; columns++) {
+        const row = spreadRow(left, right, columns)
+        const total = stringWidth(row.left) + row.gap + stringWidth(row.right)
+        if (total > columns && columns > 0) {
+          worst = `overflow at columns=${columns}: ${total} for ${JSON.stringify([left, right])}`
+        }
+        if (columns > 0 && row.gap < 1) worst = `segments touch at columns=${columns}`
+      }
+    }
+  }
+  check('a spread row is never wider than the columns it was given', worst, 'ok')
+  check('a zero-width row renders nothing', spreadRow('a', 'b', 0), { left: '', gap: 0, right: '' })
+  check('the right segment is pinned to the end', spreadRow('ab', 'cd', 10), { left: 'ab', gap: 6, right: 'cd' })
+  check('a CJK left segment is measured in columns', spreadRow('恢复', 'ab', 10), { left: '恢复', gap: 4, right: 'ab' })
+  // 12 columns, a left segment 8 wide, one reserved for the gap: 3 remain.
+  check('the right segment yields first', spreadRow('恢复会话', '12345', 12).right, '12…')
+  check('the left segment yields when it alone will not fit', spreadRow('恢复会话', 'x', 5).left, '恢…')
+}
+
+check('the tail is what a one-line editor keeps', tailWidth('abcdefgh', 5), '…efgh')
+check('text that fits keeps its head', tailWidth('abc', 5), 'abc')
+check('the tail is measured in columns too', tailWidth('你好世界', 5), '…世界')
+check('a zero budget yields nothing at all', tailWidth('abc', 0), '')
 
 check('home collapses to a tilde', formatProject('/home/me/code', '/home/me'), '~/code')
 check('the home directory itself is just a tilde', formatProject('/home/me', '/home/me'), '~')

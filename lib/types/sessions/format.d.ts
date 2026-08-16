@@ -14,6 +14,47 @@ import type { Theme } from '../theme.js';
  * @returns `text` when it fits, otherwise a cut ending in `…`.
  */
 export declare function truncateWidth(text: string, maxWidth: number): string;
+/** A row laid out as `left`, blank columns, then `right`. */
+export interface SpreadRow {
+    /** The left-hand segment, cut only if it alone exceeds the row. */
+    readonly left: string;
+    /** Blank columns between the two segments; at least one. */
+    readonly gap: number;
+    /** The right-hand segment, cut to whatever room the left one left. */
+    readonly right: string;
+}
+/**
+ * Lay out one row with its two ends pushed apart.
+ *
+ * Measured in COLUMNS, which is the whole reason this is a function rather
+ * than three expressions at the call site. Every string it receives is
+ * localized, and in Chinese a character is two columns wide — arithmetic on
+ * `.length` overstates the gap by the width of the text itself, so the row
+ * overflows and the terminal either wraps it (shifting every region below it
+ * down a line) or clips it (silently eating the right-hand segment). Both
+ * failures are invisible to an English-only test.
+ *
+ * The invariant, which the regression checks exhaustively: the assembled row
+ * is never wider than `columns`.
+ *
+ * @param left - Text pinned to the start of the row.
+ * @param right - Text pinned to the end, truncated when it will not fit.
+ * @param columns - Total width available.
+ */
+export declare function spreadRow(left: string, right: string, columns: number): SpreadRow;
+/**
+ * Keep the END of a string within a display width, CJK-aware.
+ *
+ * What a single-line editor does: the caret lives at the end, so that is the
+ * part worth showing. Used where text the user is typing has to stay on ONE
+ * row — a wrapped input row steals a line from the list and can push the row
+ * below it off the bottom of the screen.
+ *
+ * @param text - Plain text, no ANSI.
+ * @param maxWidth - Column budget, leading ellipsis included.
+ * @returns `text` when it fits, otherwise `…` followed by its tail.
+ */
+export declare function tailWidth(text: string, maxWidth: number): string;
 /**
  * Elapsed time as a person would say it: `just now`, `9 hours ago`, and an
  * absolute date once "ago" stops being useful.

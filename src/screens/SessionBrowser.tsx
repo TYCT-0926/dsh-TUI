@@ -7,7 +7,8 @@ import { SessionListRow } from '../components/sessions/SessionListRow.js'
 import { SessionPreview } from '../components/sessions/SessionPreview.js'
 import { useTerminalFocus } from '../ink/hooks/use-terminal-focus.js'
 import { isMod, isPlainReturn, modLabel } from '../utils/modifiers.js'
-import { formatProject, truncateWidth } from '../sessions/format.js'
+import { formatProject, spreadRow, tailWidth, truncateWidth } from '../sessions/format.js'
+import { stringWidth } from '../ink/stringWidth.js'
 import {
   anchorTop,
   buildView,
@@ -29,6 +30,34 @@ type BrowserMode = 'list' | 'confirm-delete' | 'rename' | 'confirm-clean'
 const CHROME_LINES = 6
 /** Terminal width below which the preview replaces the list instead of joining it. */
 const SPLIT_MIN_COLUMNS = 100
+
+/** A thrown value's message, for a notification that has to say something. */
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** Rendered width of a hint: `HintLine` strips the `**` emphasis markers. */
+function hintWidth(text: string): number {
+  return stringWidth(text.replace(/\*\*/gu, ''))
+}
+
+/**
+ * The widest hint that fits, cut only when even the shortest will not.
+ *
+ * A wrapped hint is worse than an abbreviated one in two ways: it eats rows
+ * the list needs, and — being the last region on screen — the part that falls
+ * off the bottom is its own tail, so the keys nobody can guess are exactly
+ * the ones that disappear.
+ *
+ * @param candidates - Variants from widest to narrowest.
+ * @param budget - Columns available to the row.
+ */
+function fitHint(candidates: readonly string[], budget: number): string {
+  for (const candidate of candidates) {
+    if (hintWidth(candidate) <= budget) return candidate
+  }
+  return truncateWidth((candidates[candidates.length - 1] ?? '').replace(/\*\*/gu, ''), budget)
+}
 
 /**
  * The session browser — `/resume` as a screen of its own.
@@ -92,6 +121,12 @@ export function SessionBrowser({
   const topRef = React.useRef(0)
   const [mode, setMode] = React.useState<BrowserMode>('list')
   const [renameText, setRenameText] = React.useState('')
+  // The browser owns the whole screen, so it has to carry its own messages.
+  // `channel.notify` renders into the conversation — which is exactly what is
+  // NOT on screen right now — so a failed delete, a refused resume, or an
+  // unreadable listing would otherwise report itself to a hidden surface and
+  // look to the user like nothing happened at all.
+  const [notice, setNotice] = React.useState<{ text: string; tone: 'error' | 'info' } | undefined>()
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const [preview, setPreview] = React.useState<readonly PreviewEntry[]>([])
   const [previewLoading, setPreviewLoading] = React.useState(false)
@@ -101,11 +136,36 @@ export function SessionBrowser({
   // different minutes.
   const now = Date.now()
 
+  /**
+   * Say something, on screen and in the transcript.
+   *
+   * Both, deliberately: the line below the list is what the user can actually
+   * read right now, and the transcript entry is what they still have after
+   * they leave.
+   */
+  const report = React.useCallback(
+    (text: string, tone: 'error' | 'info'): void => {
+      setNotice({ text, tone })
+      channel.notify(text, tone === 'error' ? { color: 'error' } : {})
+    },
+    [channel],
+  )
+
+  // Every await below is wrapped. The adapter's own paths are total functions
+  // that degrade rather than throw, but this is the UI: a rejection escaping
+  // an event handler here becomes an unhandled rejection with the terminal in
+  // raw mode and the alternate screen active — the worst possible place to
+  // find out a promise was not caught. A failure leaves the browser standing
+  // with whatever it already had.
   const reload = React.useCallback(async () => {
-    const listed = await channel.listSessions()
-    setSessions(listed)
-    setLoaded(true)
-  }, [channel])
+    try {
+      setSessions(await channel.listSessions())
+    } catch (error) {
+      report(t('session-list-failed', { err: message(error) }), 'error')
+    } finally {
+      setLoaded(true)
+    }
+  }, [channel, report])
 
   React.useEffect(() => {
     void reload()
@@ -157,11 +217,15 @@ export function SessionBrowser({
     if (!previewOpen || focused === undefined) return
     let live = true
     setPreviewLoading(true)
-    void channel.previewSession(focused.id).then((entries) => {
-      if (!live) return
-      setPreview(entries)
-      setPreviewLoading(false)
-    })
+    void channel
+      .previewSession(focused.id)
+      .then(entries => (live ? entries : undefined))
+      .catch(() => (live ? [] : undefined))
+      .then((entries) => {
+        if (entries === undefined) return
+        setPreview(entries)
+        setPreviewLoading(false)
+      })
     return () => {
       live = false
     }
@@ -174,8 +238,13 @@ export function SessionBrowser({
   const soloPreview = previewOpen && columns < SPLIT_MIN_COLUMNS
   const previewWidth = splitPreview ? Math.min(56, Math.floor(columns * 0.42)) : columns
   const listWidth = Math.max(20, columns - (splitPreview ? previewWidth : 0))
-  const modeLines = mode === 'list' ? 0 : 1
-  const listHeight = Math.max(2, rows - CHROME_LINES - modeLines)
+  // Every optional row between the list and the hints costs the list a line.
+  const extraLines = (mode === 'list' ? 0 : 1) + (notice === undefined ? 0 : 1)
+  // The list takes exactly what the chrome leaves, and zero when there is
+  // nothing left. Forcing a minimum here would make the regions below it sum
+  // to more rows than the terminal has, which pushes the hint line off the
+  // bottom on a short terminal instead of simply showing fewer sessions.
+  const listHeight = Math.max(0, rows - CHROME_LINES - extraLines)
 
   const windowTop = anchorTop(view.rows, focus, listHeight, topRef.current)
   topRef.current = windowTop
@@ -196,43 +265,62 @@ export function SessionBrowser({
     topRef.current = 0
   }
 
-  const runDelete = (target: SessionSummary): void => {
+  /** Run one mutation, report it, and re-list — reporting a failure either way. */
+  const mutate = (
+    action: () => Promise<boolean>,
+    done: string,
+    failed: string,
+  ): void => {
     void (async () => {
-      const ok = await channel.deleteSession(target.id)
-      channel.notify(
-        ok
-          ? t('resume-deleted', { name: target.title.text })
-          : t('resume-delete-failed', { name: target.title.text }),
-        ok ? {} : { color: 'error' },
-      )
+      let ok = false
+      let reason: string | undefined
+      try {
+        ok = await action()
+      } catch (error) {
+        reason = message(error)
+      }
+      report(ok ? done : reason === undefined ? failed : `${failed} · ${reason}`, ok ? 'info' : 'error')
       await reload()
     })()
   }
 
+  const runDelete = (target: SessionSummary): void =>
+    mutate(
+      () => channel.deleteSession(target.id),
+      t('resume-deleted', { name: target.title.text }),
+      t('resume-delete-failed', { name: target.title.text }),
+    )
+
+  const runRename = (target: SessionSummary, title: string): void =>
+    mutate(
+      () => channel.renameSessionTo(target.id, title),
+      t('rename-done', { title }),
+      t('resume-rename-failed', { name: target.title.text }),
+    )
+
   const runClean = (): void => {
-    const ids = view.emptyIds
+    // Snapshot the ids before any await: the view is rebuilt by the reload
+    // below, and deleting from a list that moved under us would be a
+    // destructive action aimed at whatever happens to be there now.
+    const ids = [...view.emptyIds]
     void (async () => {
       let removed = 0
       for (const id of ids) {
-        if (await channel.deleteSession(id)) removed += 1
+        try {
+          if (await channel.deleteSession(id)) removed += 1
+        } catch {
+          // One unremovable log must not abandon the rest of the sweep.
+        }
       }
-      channel.notify(t('session-cleaned', { n: removed }))
-      await reload()
-    })()
-  }
-
-  const runRename = (target: SessionSummary, title: string): void => {
-    void (async () => {
-      const ok = await channel.renameSessionTo(target.id, title)
-      channel.notify(
-        ok ? t('rename-done', { title }) : t('resume-rename-failed', { name: target.title.text }),
-        ok ? {} : { color: 'error' },
-      )
+      report(t('session-cleaned', { n: removed }), 'info')
       await reload()
     })()
   }
 
   useInput((input, key) => {
+    // A notice describes what the LAST action did; the next keystroke makes it
+    // stale, so it goes as soon as the user acts again.
+    if (notice !== undefined) setNotice(undefined)
     if (mode === 'confirm-delete') {
       if (isPlainReturn(key)) {
         setMode('list')
@@ -277,10 +365,24 @@ export function SessionBrowser({
     } else if (isPlainReturn(key)) {
       if (focused === undefined) return
       const target = focused
-      onClose()
-      void channel.resumeTo(target.id).then((ok) => {
-        if (ok) channel.notify(t('resume-resumed'))
-      })
+      // The screen closes only once the resume actually happened. Closing
+      // first and letting a refusal fall through to a notification would send
+      // that explanation to the conversation the user is not looking at, and
+      // leave them staring at an unchanged transcript wondering what Enter
+      // did. `resumeTo` reports its own reasons; this only has to stay put.
+      void channel
+        .resumeTo(target.id)
+        .then((ok) => {
+          if (ok) {
+            channel.notify(t('resume-resumed'))
+            onClose()
+          } else {
+            setNotice({ text: t('session-resume-refused'), tone: 'error' })
+          }
+        })
+        .catch((error: unknown) => {
+          setNotice({ text: t('session-resume-failed', { err: message(error) }), tone: 'error' })
+        })
     } else if (key.escape) {
       // Esc backs out one layer at a time: a live query first, the screen
       // second. Closing on the first Esc would discard a search the user is
@@ -319,31 +421,56 @@ export function SessionBrowser({
   counts.push(t('session-count-shown', { n: view.shown }))
   if (view.hiddenSubagents > 0) counts.push(t('session-count-subagents', { n: view.hiddenSubagents }))
   if (view.emptyCount > 0) counts.push(t('session-count-empty', { n: view.emptyCount }))
-  const heading = t('resume-title')
-  const summary = counts.join(' · ')
-  // The header is laid out as one pre-measured line rather than a flex row:
-  // at an exact fit, flex truncation eats a character and the row reflows,
-  // which pushes every region below it down by one.
-  const gap = Math.max(1, columns - 1 - heading.length - summary.length)
+  // The header is laid out as one pre-measured row rather than a flex row: at
+  // an exact fit, flex truncation eats a character and the row reflows, which
+  // pushes every region below it down by one. `spreadRow` owns the column
+  // arithmetic and the regression pins its invariant directly.
+  const heading = ` ${t('resume-title')}`
+  const header = spreadRow(heading, counts.join(' · '), Math.max(0, columns - 1))
   const scope = filters.allProjects
     ? t('session-scope-all')
     : formatProject(channel.cwd, home)
 
+  // One budget for every full-width single-line region: the search box, the
+  // confirmations, the rename editor, the notice. Each of them carries text
+  // whose length nobody controls — a session title, a filesystem path, an
+  // error message — and each of them sits between the list and the hints,
+  // where one wrapped row costs the list a line and can push the hints off
+  // the bottom of the screen.
+  const inputBudget = Math.max(0, columns - 2)
+  const hint =
+    mode === 'confirm-delete' || mode === 'confirm-clean'
+      ? fitHint([t('resume-hint-delete')], inputBudget)
+      : mode === 'rename'
+        ? fitHint([t('resume-hint-rename')], inputBudget)
+        : fitHint(
+          [
+            t('session-hint-list', {
+              mod: modLabel,
+              projects: filters.allProjects ? t('session-toggle-on') : t('session-toggle-off'),
+              runs: filters.showSubagents ? t('session-toggle-on') : t('session-toggle-off'),
+            }),
+            t('session-hint-list-mid', { mod: modLabel }),
+            t('session-hint-list-short'),
+          ],
+          inputBudget,
+        )
+
   return (
     <Box flexDirection="column" width={columns} height={rows}>
       <Box flexShrink={0}>
-        <Text color="remember" bold>{` ${heading}`}</Text>
-        <Text dimColor>{`${' '.repeat(gap)}${truncateWidth(summary, Math.max(0, columns - 2 - heading.length))}`}</Text>
+        <Text color="remember" bold>{header.left}</Text>
+        <Text dimColor>{`${' '.repeat(header.gap)}${header.right}`}</Text>
       </Box>
       <Box flexShrink={0}>
         <Divider width={columns} />
       </Box>
       <Box flexShrink={0}>
         <SearchBox
-          query={filters.query}
+          query={tailWidth(filters.query, inputBudget)}
           isFocused={mode === 'list'}
           isTerminalFocused={isTerminalFocused}
-          placeholder={t('session-search-placeholder', { scope })}
+          placeholder={truncateWidth(t('session-search-placeholder', { scope }), inputBudget)}
           borderless
         />
       </Box>
@@ -354,9 +481,11 @@ export function SessionBrowser({
       <Box flexGrow={1} flexShrink={1}>
         {!soloPreview && (
         <Box flexDirection="column" width={listWidth} height={listHeight} flexShrink={0}>
-          {!loaded && <Text dimColor italic>{` ${t('session-loading')}`}</Text>}
+          {!loaded && (
+            <Text dimColor italic>{` ${truncateWidth(t('session-loading'), listWidth - 2)}`}</Text>
+          )}
           {loaded && view.rows.length === 0 && (
-            <Text dimColor italic>{` ${t('resume-none-in-cwd')}`}</Text>
+            <Text dimColor italic>{` ${truncateWidth(t('resume-none-in-cwd'), listWidth - 2)}`}</Text>
           )}
           {visible.map((row, index) =>
             row.kind === 'project' ? (
@@ -392,23 +521,34 @@ export function SessionBrowser({
         )}
       </Box>
 
+      {notice !== undefined && (
+        <Box flexShrink={0}>
+          <Text color={notice.tone === 'error' ? 'error' : 'success'}>
+            {` ${truncateWidth(notice.text, Math.max(0, columns - 2))}`}
+          </Text>
+        </Box>
+      )}
       {mode === 'confirm-delete' && focused !== undefined && (
         <Box flexShrink={0}>
-          <Text color="error">{` ${t('resume-delete-confirm', { name: focused.title.text })}`}</Text>
+          <Text color="error">
+            {` ${truncateWidth(t('resume-delete-confirm', { name: focused.title.text }), inputBudget)}`}
+          </Text>
         </Box>
       )}
       {mode === 'confirm-clean' && (
         <Box flexShrink={0}>
-          <Text color="warning">{` ${t('session-clean-confirm', { n: view.emptyCount })}`}</Text>
+          <Text color="warning">
+            {` ${truncateWidth(t('session-clean-confirm', { n: view.emptyCount }), inputBudget)}`}
+          </Text>
         </Box>
       )}
       {mode === 'rename' && (
         <Box flexShrink={0}>
           <SearchBox
-            query={renameText}
+            query={tailWidth(renameText, inputBudget)}
             isFocused
             isTerminalFocused={isTerminalFocused}
-            placeholder={t('resume-rename-placeholder')}
+            placeholder={truncateWidth(t('resume-rename-placeholder'), inputBudget)}
             prefix="✎"
             borderless
           />
@@ -420,21 +560,7 @@ export function SessionBrowser({
       </Box>
       <Box flexShrink={0}>
         <Text dimColor italic>
-          <HintLine
-            text={
-              mode === 'confirm-delete'
-                ? t('resume-hint-delete')
-                : mode === 'confirm-clean'
-                  ? t('resume-hint-delete')
-                  : mode === 'rename'
-                    ? t('resume-hint-rename')
-                    : t('session-hint-list', {
-                      mod: modLabel,
-                      projects: filters.allProjects ? t('session-toggle-on') : t('session-toggle-off'),
-                      runs: filters.showSubagents ? t('session-toggle-on') : t('session-toggle-off'),
-                    })
-            }
-          />
+          <HintLine text={hint} />
         </Text>
       </Box>
     </Box>

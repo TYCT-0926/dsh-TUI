@@ -322,8 +322,11 @@ check(
 )
 
 // ── delete: the guard, the cancel, the commit ───────────────────────────
-s = await windowed(() => stdin.write('\x04'), 400) // ctrl+d
-check('the confirmation names the focused session', /Delete "betarenamed"/.test(flat(s)), flat(s).slice(-200))
+// Composed screen, not the painted window: the notice row this replaces sat
+// on the same line, so the per-cell diff legitimately emits only the changed
+// characters and a regex over those bytes can never match.
+await windowed(() => stdin.write('\x04'), 400) // ctrl+d
+check('the confirmation names the focused session', /Delete "betarenamed"/.test(flat(screen())), flat(screen()).slice(-220))
 await windowed(() => stdin.write('\x1b[13;5u'), 400) // Ctrl+Enter must not confirm
 check('Ctrl+Enter does not confirm an irreversible delete', channel.calls.delete.length === 0, JSON.stringify(channel.calls.delete))
 await windowed(() => stdin.write('\x1b'), 350) // Esc cancels
@@ -335,7 +338,11 @@ check(
   channel.calls.delete.length === 1 && channel.calls.delete[0] === 's-mid',
   JSON.stringify(channel.calls.delete),
 )
-check('the deleted row leaves the list', !/betarenamed/.test(screen()))
+// The notice line names what was deleted, so "gone" is asserted on the list
+// itself: one fewer session, and no row carrying that title any more.
+s = screen()
+check('the browser says what it did, on the screen the user is looking at', /Deleted session betarenamed/.test(flat(s)), flat(s).slice(-200))
+check('the deleted row leaves the list', /2 sessions/.test(flat(s)) && !s.split('\n').some(l => /^[❯\s]*betarenamed/.test(l)), flat(s).slice(0, 200))
 
 // ── leaving ─────────────────────────────────────────────────────────────
 await windowed(() => stdin.write('\x1b'), 500)
