@@ -50,7 +50,12 @@ check(
 const scratch = mkdtempSync(join(tmpdir(), 'verify-update-'))
 try {
   // The copied module imports `semver`; point its root at this repo's deps.
-  symlinkSync(join(repoRoot, 'node_modules'), join(scratch, 'node_modules'))
+  // `junction` is required on Windows: the default (file) symlink type needs
+  // Developer Mode or an elevated shell, so an unprivileged run fails with
+  // EPERM before a single assertion executes. A junction is the unprivileged
+  // directory equivalent and is ignored on POSIX, where the type argument has
+  // no effect.
+  symlinkSync(join(repoRoot, 'node_modules'), join(scratch, 'node_modules'), 'junction')
 
   // Source-checkout layout: <root>/package.json + module under <root>/src/.
   // ../../package.json lands above the root (missing) → ../package.json hits.
