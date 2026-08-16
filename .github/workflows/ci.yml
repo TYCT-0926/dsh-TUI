@@ -141,6 +141,10 @@ jobs:
       # TUI 创建及恢复的会话必须持久关联到 Workspace。
       - run: node scripts/verify-workspace-attachment.mjs
 
+      # tuiWorkspaces 服务可选化回归（issue #183）：代码层 inject 不含
+      # tuiWorkspaces、消费处带本地兜底、patch 保留服务行与行级顺序保证。
+      - run: node scripts/verify-workspaces-degrade.mjs
+
       # 会话标题回归：选择器标题宽容读取（带未标记第三方事件的日志
       # 不能让标题退化成目录名），/rename 的最后一条 session/title 优先。
       - run: node scripts/verify-session-titles.mjs
@@ -219,6 +223,10 @@ jobs:
       # 请求配置，而不是只做状态栏启动显示（≤0.3.5 的 display-only 行为）。
       - run: node --import tsx/esm scripts/repro-effort.tsx
 
+      # 子代理模型路由回归（issue #191）：child scope 没有 AgentOptions 路由时，
+      # 首次请求继承 TUI 当前完整路由；显式 child 路由保持优先。
+      - run: node --import tsx/esm scripts/verify-subagent-model-route.tsx
+
       # 子进程 stderr 接管回归（issue #17）：inherit 的 MCP 子进程 stderr
       # 不再裸写终端破坏 alt-screen，输出去重聚合为受控通知。
       - run: node --import tsx/esm scripts/verify-child-stderr.tsx
@@ -283,6 +291,11 @@ jobs:
       # 印着「Ctrl+T 展开」），转录有行之后才归轨迹场景。两者永不同屏——
       # 面板只在首条消息前出现，而那正是轨迹为空的窗口。
       - run: node --import tsx/esm scripts/verify-ctrl-t-scope.tsx
+
+      # 收缩重绘回归：一个高于视口的帧在一帧内收起，屏幕必须等于同一短状态的
+      # 全新渲染——不留旧帧、表头不出现两次。shrink-frame 家族（#38/#39/#19/
+      # #10）里步长最大的一档，不经 Chat，直接对渲染器。
+      - run: node --import tsx/esm scripts/repro-collapse-shrink.tsx
 
       # /provider 向导回归：catalog/custom 两分支的 profile 形状、凭据回滚
       # （覆盖时恢复旧 key 而非误删）、env shadow 跳过、rc.6 兼容守卫、
