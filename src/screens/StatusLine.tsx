@@ -6,6 +6,8 @@ import { KeyboardShortcutHint } from '../components/design-system/KeyboardShortc
 import { ActivityLine, contextPressurePct } from '../components/ActivityLine.js'
 import type { Channel } from '../dsh-adapter/channel.js'
 import { modeDisplayName } from '../sessionModes.js'
+import { MiniWake } from '../components/trajectory/MiniWake.js'
+import type { WaveBand } from '../dsh-adapter/types.js'
 import {
   renderContextBar,
   renderTpsGauge,
@@ -25,23 +27,21 @@ export function StatusLine({
   channel,
   selectionActive = false,
   helpOpen = false,
-  unreadFailures,
+  wake,
 }: {
   channel: Channel
   selectionActive?: boolean
   helpOpen?: boolean
   /**
-   * Count of failures the user has not looked at yet.
+   * The session projected onto the status line's few columns, plus the
+   * animation tick and the self-retiring key hint.
    *
-   * Deliberately NOT a permanent readout. A chip that is always present and
-   * always says the same thing is invisible within a day, and a live step
-   * counter is both unactionable and a source of constant repaints. This badge
-   * appears only when the session has something wrong that has not been seen,
-   * and disappears once the trajectory has been opened — the appearance is
-   * itself the message. Discovery of the key lives in the startup tip line;
-   * the moment-of-failure prompt lives in a transient notification.
+   * A strip that shows the session's shape keeps earning its space in a way a
+   * static label cannot, and it carries the failure signal in position rather
+   * than as a count in the corner. Absent in headless embeds, where nothing
+   * folds the event log.
    */
-  unreadFailures?: number
+  wake?: { band: WaveBand; hint?: string; tick: number }
 }) {
   const { columns } = useTerminalSize()
   const [themeName] = useTheme()
@@ -228,10 +228,8 @@ export function StatusLine({
               {hint}
             </Text>
           ) : null}
-          {unreadFailures !== undefined && unreadFailures > 0 ? (
-            <Box flexShrink={0}>
-              <Text color="error" bold>{`● ${unreadFailures}`}</Text>
-            </Box>
+          {wake !== undefined ? (
+            <MiniWake band={wake.band} hint={wake.hint} tick={wake.tick} />
           ) : null}
         </Box>
       </Box>

@@ -147,6 +147,15 @@ export type WaveChannel = 'input' | 'model' | 'tool'
 export interface WaveBucket {
   /** Total weight in this column, before normalization. */
   weight: number
+  /**
+   * Rows in this column, regardless of cost.
+   *
+   * Separate from `weight` because structural rows (turn/step) deliberately
+   * contribute no cost — their span is their children's — yet a column holding
+   * one is NOT empty. Conflating the two rendered such columns as gaps, which
+   * at status-line scale made the strip look broken rather than quiet.
+   */
+  count: number
   /** Per-channel weights; the dominant one drives the column's color. */
   readonly channels: { input: number; model: number; tool: number }
   /** Any member failed. */

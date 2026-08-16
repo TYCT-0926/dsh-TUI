@@ -125,9 +125,6 @@ const LIVE_EVENTS = [
   { type: 'tool/call', seq: 9002, time: T0 + 9_000_200, data: { turn: 4, step: 1, callId: 'live', name: 'long_task', arguments: '{}' } },
 ]
 
-/** Notifications posted by the screen under test, in order. */
-const notices: string[] = []
-
 function makeChannel(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: 0,
@@ -163,7 +160,7 @@ function makeChannel(overrides: Record<string, unknown> = {}): Record<string, un
     submit: (): void => {},
     cancel: (): void => {},
     clear: (): void => {},
-    notify: (text: string): void => { notices.push(text) },
+    notify: (): void => {},
     listModels: () => Promise.resolve([]),
     listSessions: () => [],
     setResumeTarget: (): void => {},
@@ -380,43 +377,75 @@ function makeChannel(overrides: Record<string, unknown> = {}): Record<string, un
 // ───────────────────────── part C: the chat-side entry ─────────────────────
 
 {
-  // The trajectory has to be findable from the conversation, and the design
-  // splits that across three channels so none of them is permanent clutter:
-  // the startup tip teaches the key once, a transient notice fires at the
-  // moment a session first breaks, and an unread badge persists only while
-  // there is unseen breakage. This block pins all three.
-  notices.length = 0
-  const { stdout, stdin, screen, term } = makeHarness(120, 34, 200)
+  // The trajectory must be findable from the conversation without becoming
+  // clutter, and the design splits that across three non-overlapping
+  // channels: the startup tip teaches the key once, a live wake strip in the
+  // status line keeps showing the session's shape (and its failures, in
+  // position), and exactly ONE footnote points at the newest unseen failure.
+  const { stdout, stdin, screen, term } = makeHarness(126, 34, 200)
+  const failedRow = {
+    id: 7,
+    kind: 'tool',
+    text: '',
+    tool: {
+      callId: 'x1',
+      name: 'Bash',
+      argsText: 'pnpm test',
+      status: 'error',
+      errorText: 'Error: 3 tests failed',
+      startedAt: T0,
+      durationMs: 120,
+    },
+  }
   const instance = await render(
     React.createElement(Chat, {
       channel: makeChannel({
         traceEvents: () => EVENTS,
-        rows: [{ id: 0, kind: 'assistant', text: 'done', time: T0 }],
+        // One row only: the harness terminal is short, and a longer
+        // transcript scrolls the failed card out of the visible window.
+        rows: [failedRow],
       }) as never,
       questionStore: new QuestionStore() as never,
       onExit: () => {},
       fullscreen: false,
+      // Deterministic: never read the developer's own prefs file.
+      trajectorySeen: false,
     }),
     { stdout: stdout as never, stdin: stdin as never, stderr: stdout as never, exitOnCtrlC: false, patchConsole: false },
   )
   for (const value of instances.values()) instances.set(process.stdout, value)
-  await sleep(500)
+  await sleep(600)
 
   const startup = screen()
   check('the startup tip teaches the trajectory key', /ctrl\+t|⌘t/.test(startup), '')
 
-  check('a failing session posts exactly one notice', notices.length === 1, `${notices.length}: ${notices[0] ?? ''}`)
-  check('the notice names the key', /ctrl\+t|⌘t/.test(notices[0] ?? ''), notices[0] ?? '')
+  // B — the wake strip lives on the hint row, and every assertion below is
+  // scoped to that row on purpose: the startup tip also names the key, so a
+  // whole-screen search could not tell the two channels apart.
+  const hintRowOf = (text: string): string =>
+    text.split('\n').find(line => line.includes('shortcuts') || line.includes('快捷键')) ?? ''
+  const statusArea = hintRowOf(startup)
+  check('the status line carries a live wake strip', /[▁▂▃▄▅▆▇█]/.test(statusArea),
+    statusArea.trim().slice(-42))
+  check('the key hint rides beside the strip while unseen', /ctrl\+t|⌘t/.test(statusArea),
+    statusArea.trim().slice(-42))
 
-  check('unseen failures show as a badge', /● ?\d+/.test(screen()), '')
+  // E — exactly one footnote, on the failure.
+  const footnotes = (startup.match(/看完整轨迹|full trajectory/g) ?? []).length
+  check('a failed call carries exactly one trajectory footnote', footnotes === 1, `${footnotes}`)
 
-  // Opening the scene marks them seen; closing must leave the badge gone.
+  // Opening the scene marks the failures seen and retires both pointers.
   stdin.write('\x14')
-  await sleep(300)
+  await sleep(400)
   stdin.write('q')
-  await sleep(300)
-  check('the badge clears once the trajectory has been opened', !/● ?\d+/.test(screen()), '')
-  check('the notice does not repeat', notices.length === 1, `${notices.length}`)
+  await sleep(500)
+  const after = screen()
+  const afterStatus = hintRowOf(after)
+  check('the footnote clears once the trajectory has been opened',
+    (after.match(/看完整轨迹|full trajectory/g) ?? []).length === 0, '')
+  check('the key hint retires once the trajectory has been opened',
+    !/ctrl\+t|⌘t/.test(afterStatus), afterStatus.trim().slice(-42))
+  check('the wake strip stays after the hint retires', /[▁▂▃▄▅▆▇█]/.test(afterStatus), '')
 
   instance.unmount()
   instances.delete(process.stdout)

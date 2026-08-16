@@ -111,7 +111,7 @@ export function WaveBand({
     const dimmed = matches !== undefined && !matches.has(column)
     const isCursor = column === cursorColumn
 
-    if (bucket.weight <= 0) {
+    if (bucket.count === 0) {
       wave += chalk.hex(toHex(theme.subtle))(IDLE)
       continue
     }

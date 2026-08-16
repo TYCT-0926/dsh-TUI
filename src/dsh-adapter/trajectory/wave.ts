@@ -130,6 +130,7 @@ export function projectWave(
 
   const buckets: WaveBucket[] = Array.from({ length: width }, () => ({
     weight: 0,
+    count: 0,
     channels: { input: 0, model: 0, tool: 0 },
     error: false,
     retry: false,
@@ -146,6 +147,7 @@ export function projectWave(
     const column = Math.min(width - 1, Math.floor(pos[index]! * width))
     const slot = buckets[column]!
     const weight = costOf(node)
+    slot.count += 1
     slot.weight += weight
     slot.channels[channelOf(node.kind)] += weight
     if (slot.firstIndex === -1) slot.firstIndex = index

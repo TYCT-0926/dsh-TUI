@@ -2,7 +2,7 @@ import React from 'react';
 import type { Channel } from '../dsh-adapter/channel.js';
 import type { QuestionStore } from '../dsh-adapter/questions.js';
 import { ApprovalStore } from '../dsh-adapter/approvals.js';
-export declare function Chat({ channel, questionStore, approvalStore, onExit, onUpdate, fullscreen, }: {
+export declare function Chat({ channel, questionStore, approvalStore, onExit, onUpdate, fullscreen, trajectorySeen: trajectorySeenProp, }: {
     channel: Channel;
     questionStore: QuestionStore;
     /**
@@ -21,5 +21,14 @@ export declare function Chat({ channel, questionStore, approvalStore, onExit, on
      * would drop the whole app back to the main screen.
      */
     fullscreen?: boolean;
+    /**
+     * Whether the trajectory has been opened before on this machine.
+     *
+     * A prop rather than a filesystem read inside the component: a render
+     * initializer touching disk is the wrong layer, and hosts that already know
+     * (or tests that need determinism) can simply say. Falls back to the
+     * persisted flag when the host does not supply one.
+     */
+    trajectorySeen?: boolean;
 }): React.JSX.Element;
 //# sourceMappingURL=Chat.d.ts.map

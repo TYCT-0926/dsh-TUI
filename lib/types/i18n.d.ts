@@ -1756,9 +1756,9 @@ declare const dict: {
         readonly zh: "暂无轨迹事件";
         readonly en: "No trajectory events yet";
     };
-    readonly 'traj-notice-failure': {
-        readonly zh: "本次会话出现 {{n}} 次失败 · {{key}} 查看轨迹";
-        readonly en: "{{n}} failure(s) this session · {{key}} to open the trajectory";
+    readonly 'traj-hint-failure': {
+        readonly zh: "{{key}} 看完整轨迹";
+        readonly en: "{{key}} for the full trajectory";
     };
 };
 export type I18nKey = keyof typeof dict;

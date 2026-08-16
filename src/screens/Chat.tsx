@@ -1,6 +1,6 @@
 import React from 'react'
 import { t, getLang, setLang, isLang, writeLangPref, subscribeLang, type I18nKey } from '../i18n.js'
-import { AlternateScreen, Box, Text, useInput, ScrollBox, type ScrollBoxHandle, useTheme } from '../ui.js'
+import { AlternateScreen, Box, Text, useInput, ScrollBox, type ScrollBoxHandle, useTerminalSize, useTheme } from '../ui.js'
 import { POINTER } from '../cc/figures.js'
 import { isMod, isPlainReturnInput, modLabel } from '../utils/modifiers.js'
 import { formatTokens } from '../cc/format.js'
@@ -42,8 +42,11 @@ import { RewindPicker } from '../components/RewindPicker.js'
 import { BtwPanel } from '../components/BtwPanel.js'
 import { setClipboard } from '../ink/termio/osc.js'
 import instances from '../ink/instances.js'
+import { useAnimationFrame } from '../ink/hooks/use-animation-frame.js'
 import { TrajectoryScene } from './TrajectoryScene.js'
-import { extendTrajectory, type TrajBuild } from '../dsh-adapter/trajectory/index.js'
+import { extendTrajectory, projectWave, type TrajBuild } from '../dsh-adapter/trajectory/index.js'
+import { miniWakeWidth } from '../components/trajectory/MiniWake.js'
+import { readTrajectorySeen, writeTrajectorySeen } from '../trajectoryPrefs.js'
 import type { SessionEvent } from '../dsh-adapter/types.js'
 import { LoadingState } from '../components/design-system/LoadingState.js'
 import { Pane } from '../components/design-system/Pane.js'
@@ -134,6 +137,7 @@ export function Chat({
   onExit,
   onUpdate,
   fullscreen = false,
+  trajectorySeen: trajectorySeenProp,
 }: {
   channel: Channel
   questionStore: QuestionStore
@@ -153,6 +157,15 @@ export function Chat({
    * would drop the whole app back to the main screen.
    */
   fullscreen?: boolean
+  /**
+   * Whether the trajectory has been opened before on this machine.
+   *
+   * A prop rather than a filesystem read inside the component: a render
+   * initializer touching disk is the wrong layer, and hosts that already know
+   * (or tests that need determinism) can simply say. Falls back to the
+   * persisted flag when the host does not supply one.
+   */
+  trajectorySeen?: boolean
 }) {
   // Re-render whenever the channel mutates; rows/status are read fresh below.
   React.useSyncExternalStore(channel.subscribe, () => channel.version)
@@ -284,9 +297,13 @@ export function Chat({
     setSceneOpen(false)
   }, [])
 
-  /** Open the scene and mark every failure so far as seen. */
+  /** Open the scene, mark failures seen, and retire the key hint for good. */
   const openScene = React.useCallback(() => {
     seenFailuresRef.current = trajectoryRef.current?.counts.errors ?? 0
+    setTrajectorySeen(previous => {
+      if (!previous) writeTrajectorySeen()
+      return true
+    })
     setSceneOpen(true)
   }, [])
   /** Startup context panel: expanded by header click or Ctrl+T. */
@@ -1108,26 +1125,57 @@ export function Chat({
   const trajectory = trajectoryRef.current
 
   /**
-   * Failures the user has not looked at.
+   * The status-line wake.
    *
-   * `seenFailuresRef` is set to the current total whenever the trajectory is
-   * opened, so the badge behaves like unread mail: it appears when something
-   * breaks and clears when the evidence has been seen. A one-shot transient
-   * notice fires the first time a session accumulates a failure — that is the
-   * moment the trajectory is worth mentioning, and mentioning it then is worth
-   * more than printing the key on every frame forever.
+   * Projected onto a dozen-odd columns and memoized against the ledger's row
+   * count, so it recomputes when the session actually grows rather than on
+   * every animation tick. The tick only re-colours the cells it already has.
+   */
+  const { columns: terminalColumns } = useTerminalSize()
+  const wakeWidth = miniWakeWidth(terminalColumns)
+  const wakeBand = React.useMemo(
+        () =>
+      wakeWidth === 0
+        ? undefined
+        // `sequence`, not the scene's `compressed`: at sixteen columns an idle
+        // gap cannot express how long it was, so it only reads as a broken
+        // strip. Equal-width columns give a continuous silhouette, which is
+        // the only thing this size can actually say.
+        // Width is also clamped to the row count: with fewer rows than
+        // columns the strip would be mostly gaps, which reads as broken
+        // rather than as short. It simply grows as the session does.
+        : projectWave(trajectory.nodes, Math.min(wakeWidth, trajectory.nodes.length), 'sequence'),
+    // The node array is mutated in place by the incremental fold, so its
+    // length is the honest dependency; its identity never changes.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+    [trajectory.nodes, trajectory.counts.rows, wakeWidth],
+  )
+  const [wakeTickRef, wakeTime] = useAnimationFrame(channel.working ? 120 : null)
+  /**
+   * The key hint beside the strip retires itself once the trajectory has been
+   * opened — teaching belongs in the first minute, not on every frame forever.
+   */
+  const [trajectorySeen, setTrajectorySeen] = React.useState(() => trajectorySeenProp ?? readTrajectorySeen())
+
+  /**
+   * The one failure worth pointing at.
+   *
+   * Only the LATEST failed tool row carries the footnote, and only while its
+   * failures are unseen. Repeating it under every historical failure would be
+   * exactly the clutter the whole entry design is trying to avoid — one
+   * pointer, at the newest problem, is enough to find the rest.
    */
   const seenFailuresRef = React.useRef(0)
-  const noticedFailureRef = React.useRef(false)
   const unreadFailures = Math.max(0, trajectory.counts.errors - seenFailuresRef.current)
-  React.useEffect(() => {
-    if (unreadFailures === 0 || noticedFailureRef.current || sceneOpen) return
-    noticedFailureRef.current = true
-    channel.notify(
-      t('traj-notice-failure', { n: unreadFailures, key: `${modLabel}t` }),
-      { color: 'warning', timeoutMs: 6000 },
-    )
-  }, [unreadFailures, sceneOpen, channel])
+  const failureHintRowId = React.useMemo(() => {
+    if (unreadFailures === 0) return null
+    for (let index = channel.rows.length - 1; index >= 0; index--) {
+      const row = channel.rows[index]
+      if (row?.kind === 'tool' && row.tool?.status === 'error') return row.id
+    }
+    return null
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [channel.rows, channel.version, unreadFailures])
 
   // Row seeking under layout virtualization: a mounted row seeks directly;
   // an unmounted one is force-mounted first, then sought by the completion
@@ -1792,7 +1840,7 @@ export function Chat({
   }
 
   return (
-    <Box flexDirection="column" flexGrow={1} width="100%">
+    <Box ref={wakeTickRef} flexDirection="column" flexGrow={1} width="100%">
       {!isSticky && channel.lastUserText && (
         <StickyPromptHeader
           text={channel.lastUserText}
@@ -1823,6 +1871,8 @@ export function Chat({
         )}
         <MessageList
           rows={channel.rows}
+          failureHintRowId={failureHintRowId}
+          failureHint={t('traj-hint-failure', { key: `${modLabel}t` })}
           expanded={expanded}
           expandedRows={expandedRows}
           selectedId={selectionActive ? selectedId : null}
@@ -2032,7 +2082,15 @@ export function Chat({
           channel={channel}
           selectionActive={selectionActive}
           helpOpen={helpOpen}
-          unreadFailures={unreadFailures}
+          wake={
+            wakeBand === undefined
+              ? undefined
+              : {
+                  band: wakeBand,
+                  hint: trajectorySeen ? undefined : `${modLabel}t`,
+                  tick: Math.floor(wakeTime / 120),
+                }
+          }
         />
       </Box>
     </Box>
