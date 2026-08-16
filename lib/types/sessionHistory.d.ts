@@ -1,11 +1,3 @@
-/** One persisted session as the `/resume` picker lists it. */
-export interface SessionRecord {
-    id: string;
-    title: string;
-    cwd: string;
-    createdAt: number;
-    updatedAt: number;
-}
 /**
  * Store the session to resume and report the launcher invocation.
  * Dual-writes the legacy path for pre-rename launchers (see header).

@@ -4,7 +4,7 @@ import { type ContentBlock } from '@deepseek-ai/dsh-llm';
 import { type SessionEvent } from '@deepseek-ai/dsh-session';
 import type { Context } from '@deepseek-ai/cordis';
 import { type CommandCompletion, type LocalCommand } from '../commands.js';
-import { type SessionRecord } from '../sessionHistory.js';
+import { type PreviewEntry, type SessionSummary } from './sessions/index.js';
 import type { ProviderSetupHost } from './providerWizard.js';
 import { type SessionModeSpec } from '../sessionModes.js';
 import type { SpinnerMode } from '../components/Spinner/spinnerMode.js';
@@ -459,8 +459,11 @@ export interface Channel {
     providerSetup(): ProviderSetupHost | undefined;
     /** Top-level entries of the session cwd for `@` file completion. */
     listFiles(): Promise<readonly string[]>;
-    /** Recent sessions recorded by the DSH persistence backend (for `/resume`). */
-    listSessions(): Promise<readonly SessionRecord[]>;
+    /** Every session the persistence backend stores, classified and unfiltered
+     *  — the browser (`/resume`) decides which of them a given view shows. */
+    listSessions(): Promise<readonly SessionSummary[]>;
+    /** Trailing exchanges of a persisted session, for the browser's preview. */
+    previewSession(sessionId: string): Promise<readonly PreviewEntry[]>;
     /** Mark a session for `dsh-tui --resume` on the next launch. */
     setResumeTarget(sessionId: string): void;
     /** Rename the current session (CC's /rename): appends a `session/title`
@@ -667,7 +670,9 @@ export interface ChannelState {
     /** `/provider` wizard capabilities (see the public Channel type). */
     providerSetup(): ProviderSetupHost | undefined;
     listFiles(): Promise<readonly string[]>;
-    listSessions(): Promise<readonly SessionRecord[]>;
+    listSessions(): Promise<readonly SessionSummary[]>;
+    /** Trailing exchanges of a persisted session (see the public Channel type). */
+    previewSession(sessionId: string): Promise<readonly PreviewEntry[]>;
     setResumeTarget(sessionId: string): void;
     /** Rename the current session (see the public Channel type). */
     renameSession(title: string): void;

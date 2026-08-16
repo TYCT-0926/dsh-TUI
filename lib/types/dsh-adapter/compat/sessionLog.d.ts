@@ -15,6 +15,14 @@ export declare const LEGACY_SESSION_EVENT_TYPES: readonly string[];
  */
 export declare function sessionsRoots(): string[];
 /**
+ * Locate a session's log by scanning workspace directories for the session
+ * id — deliberately NOT replicating the persistence plugin's workspace-key
+ * sanitization, so the helpers survive upstream key-scheme changes.
+ * @param sessionId - Session id (directory name under each workspace dir).
+ * @returns Absolute path of session.jsonl.zstd, or undefined when absent.
+ */
+export declare function findSessionLogFile(sessionId: string): string | undefined;
+/**
  * Register every {@link LEGACY_SESSION_EVENT_TYPES} type as known in EVERY
  * reachable KNOWN_SESSION_EVENT_TYPES copy, ahead of the strict read path
  * (`agents.resume` seed validation, `persistence.load`). Idempotent; never

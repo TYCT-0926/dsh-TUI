@@ -1,0 +1,249 @@
+#!/usr/bin/env node
+/**
+ * Regression: what a session IS, and which sessions a view shows.
+ *
+ * This is the gate on the defect that started the session-browser work: the
+ * picker listed one row per stored session log, so a project with two
+ * conversations and twenty-nine delegated sub-agent runs showed thirty-one
+ * rows. The header always carried the answer (`origin: 'subagent'`); nothing
+ * read it.
+ *
+ * The trap this pins down is the one an obvious fix walks straight into. A
+ * `/rewind` fork records `parentSession` exactly like a delegated run does,
+ * and differs ONLY by the absence of `origin` — so filtering on lineage
+ * silently hides the user's own rewound branches. Every case below states
+ * which field decided it.
+ *
+ * Also covers the pure view layer: search, project scoping, sub-agent
+ * folding, and the variable-height windowing that keeps a fixed-height list
+ * box from rendering two rows onto the same line.
+ *
+ * Run: `node scripts/verify-session-kinds.mjs`
+ * Exits non-zero on any assertion failure (CI gate).
+ */
+import assert from 'node:assert/strict'
+
+const { classify, readHeader, isConversation } = await import('../lib/types/dsh-adapter/sessions/header.js')
+const { buildView, anchorTop, windowEnd, moveSelection, seekSelectable, sessionAt, DEFAULT_FILTERS } =
+  await import('../lib/types/sessions/view.js')
+
+let checks = 0
+function check(name, actual, expected) {
+  assert.deepEqual(actual, expected, name)
+  checks += 1
+}
+
+// ── 1. Header narrowing is total ────────────────────────────────────────
+check('null is not a header', readHeader(null), undefined)
+check('a string is not a header', readHeader('nope'), undefined)
+check('an array is not a header', readHeader([]), undefined)
+check('a header without an id is unusable', readHeader({ cwd: '/a' }), undefined)
+check('an empty id is unusable', readHeader({ id: '' }), undefined)
+check(
+  'unexpected field types degrade to undefined rather than throwing',
+  readHeader({ id: 'x', cwd: 42, createdAt: 'soon', delegationDepth: NaN, origin: [] }),
+  {
+    id: 'x',
+    cwd: undefined,
+    createdAt: undefined,
+    parentSession: undefined,
+    origin: undefined,
+    delegationDepth: undefined,
+    seedLength: undefined,
+    agentPreset: undefined,
+  },
+)
+check(
+  'Infinity is not a finite number',
+  readHeader({ id: 'x', createdAt: Infinity }).createdAt,
+  undefined,
+)
+
+// ── 2. Classification truth table ───────────────────────────────────────
+const kindOf = (raw) => classify(readHeader({ id: 'x', ...raw }))
+
+check('no lineage, no origin => root', kindOf({}), { kind: 'root' })
+check(
+  'parentSession alone => fork (a /rewind branch, NOT a delegated run)',
+  kindOf({ parentSession: 'p1' }),
+  { kind: 'fork', parent: 'p1' },
+)
+check(
+  'origin subagent => subagent, depth from the header',
+  kindOf({ parentSession: 'p1', origin: 'subagent', delegationDepth: 2 }),
+  { kind: 'subagent', parent: 'p1', depth: 2 },
+)
+check(
+  'origin wins over lineage — this is the whole discriminator',
+  kindOf({ parentSession: 'p1', origin: 'subagent' }).kind,
+  'subagent',
+)
+check(
+  'a subagent whose header omits delegationDepth is depth 1, not 0',
+  kindOf({ parentSession: 'p1', origin: 'subagent' }).depth,
+  1,
+)
+check(
+  'a subagent with no recorded parent is still a subagent',
+  kindOf({ origin: 'subagent' }),
+  { kind: 'subagent', parent: undefined, depth: 1 },
+)
+check(
+  'delegationDepth alone does NOT make a subagent — origin is the authority',
+  kindOf({ parentSession: 'p1', delegationDepth: 3 }),
+  { kind: 'fork', parent: 'p1' },
+)
+check('an unknown origin value is not a subagent', kindOf({ origin: 'imported' }), { kind: 'root' })
+
+check('a root is a conversation', isConversation({ kind: 'root' }), true)
+check('a fork is a conversation', isConversation({ kind: 'fork', parent: 'p' }), true)
+check(
+  'a delegated run is not',
+  isConversation({ kind: 'subagent', parent: 'p', depth: 1 }),
+  false,
+)
+
+// ── 3. The view ─────────────────────────────────────────────────────────
+const summary = (over) => ({
+  id: 'id',
+  kind: { kind: 'root' },
+  title: { text: 'title', source: 'auto' },
+  cwd: '/proj',
+  createdAt: 1,
+  updatedAt: 1,
+  bytes: 10,
+  hasPrompt: true,
+  agentPreset: undefined,
+  model: undefined,
+  label: undefined,
+  branch: undefined,
+  childCount: 0,
+  ...over,
+})
+
+const sameProject = (a, b) => a === b
+const context = { cwd: '/proj', branch: 'main', currentId: 'live', sameProject }
+
+const population = [
+  summary({ id: 'live', updatedAt: 100 }),
+  summary({ id: 'conv', updatedAt: 90, title: { text: 'render fix', source: 'auto' }, branch: 'main' }),
+  summary({ id: 'fork', updatedAt: 80, kind: { kind: 'fork', parent: 'conv' }, branch: 'other' }),
+  summary({ id: 'run1', updatedAt: 70, kind: { kind: 'subagent', parent: 'conv', depth: 1 }, label: 'audit' }),
+  summary({ id: 'run2', updatedAt: 60, kind: { kind: 'subagent', parent: 'conv', depth: 1 } }),
+  summary({ id: 'empty', updatedAt: 50, hasPrompt: false }),
+  summary({ id: 'other-project', updatedAt: 40, cwd: '/elsewhere' }),
+]
+
+const base = buildView(population, DEFAULT_FILTERS, context)
+check(
+  'default view: this project, conversations only, live session excluded',
+  base.rows.filter(r => r.kind === 'session').map(r => r.session.id),
+  ['conv', 'fork'],
+)
+check('a rewind fork survives the sub-agent filter', base.rows.some(r => r.kind === 'session' && r.session.id === 'fork'), true)
+check('delegated runs are counted, not merely dropped', base.hiddenSubagents, 2)
+check('sessions with no conversation are counted', base.emptyCount, 1)
+check('and named, so they can be cleaned', base.emptyIds, ['empty'])
+check('an empty session is never a row', base.rows.every(r => r.kind !== 'session' || r.session.id !== 'empty'), true)
+check('no project headers inside a single project', base.rows.every(r => r.kind !== 'project'), true)
+
+const all = buildView(population, { ...DEFAULT_FILTERS, allProjects: true }, context)
+check(
+  'all projects: other directories appear, each under its own header',
+  all.rows.map(r => (r.kind === 'project' ? `#${r.project}` : r.session.id)),
+  ['#/proj', 'conv', 'fork', '#/elsewhere', 'other-project'],
+)
+
+const runs = buildView(population, { ...DEFAULT_FILTERS, showSubagents: true }, context)
+check(
+  'sub-agent runs appear indented under their parent',
+  runs.rows.filter(r => r.kind === 'session').map(r => [r.session.id, r.depth]),
+  [['conv', 0], ['run1', 1], ['run2', 1], ['fork', 0]],
+)
+check('nothing is hidden once runs are shown', runs.hiddenSubagents, 0)
+
+const branch = buildView(population, { ...DEFAULT_FILTERS, branchOnly: true }, context)
+check(
+  'branch filter keeps only sessions last used on this branch',
+  branch.rows.filter(r => r.kind === 'session').map(r => r.session.id),
+  ['conv'],
+)
+
+const searched = buildView(population, { ...DEFAULT_FILTERS, query: 'RENDER' }, context)
+check('search is case-insensitive over titles', searched.rows.filter(r => r.kind === 'session').map(r => r.session.id), ['conv'])
+const byLabel = buildView(population, { ...DEFAULT_FILTERS, showSubagents: true, query: 'audit' }, context)
+check(
+  'a parent is kept when one of its runs matches, and only the matching run shows',
+  byLabel.rows.filter(r => r.kind === 'session').map(r => r.session.id),
+  ['conv', 'run1'],
+)
+const byParentText = buildView(
+  population,
+  { ...DEFAULT_FILTERS, showSubagents: true, query: 'render' },
+  context,
+)
+check(
+  'a matching parent brings all of its runs with it',
+  byParentText.rows.filter(r => r.kind === 'session').map(r => r.session.id),
+  ['conv', 'run1', 'run2'],
+)
+const noMatch = buildView(population, { ...DEFAULT_FILTERS, query: 'zzz' }, context)
+check('a query that matches nothing yields no rows', noMatch.rows.length, 0)
+
+// A run whose parent is filtered out must still be reachable rather than lost.
+const orphaned = buildView(
+  [summary({ id: 'run', kind: { kind: 'subagent', parent: 'gone', depth: 1 } })],
+  { ...DEFAULT_FILTERS, showSubagents: true },
+  context,
+)
+check(
+  'a run with no visible parent is offered at the top level',
+  orphaned.rows.filter(r => r.kind === 'session').map(r => [r.session.id, r.depth]),
+  [['run', 0]],
+)
+
+// ── 4. Selection and windowing ──────────────────────────────────────────
+const rows = all.rows
+check('project headers are not selectable', sessionAt(rows, 0), undefined)
+check('seek finds the first selectable row', seekSelectable(rows, 0, 1), 1)
+check('seek backwards from the end', seekSelectable(rows, rows.length - 1, -1), rows.length - 1)
+check('seek off the end reports -1', seekSelectable(rows, rows.length, 1), -1)
+check('moving down skips the header between groups', moveSelection(rows, 2, 1), 4)
+check('moving up skips it too', moveSelection(rows, 4, -1), 2)
+check('moving past the end wraps to the first selectable row', moveSelection(rows, rows.length - 1, 1), 1)
+check('moving before the start wraps to the last', moveSelection(rows, 1, -1), rows.length - 1)
+
+// Heights differ by row kind, so the window must be resolved in LINES.
+// A budget of 5 lines holds a 1-line header plus two 2-line sessions.
+check('window start stays at 0 while the focus fits', anchorTop(rows, 1, 5, 0), 0)
+check('window end is measured in lines, not rows', windowEnd(rows, 0, 5), 3)
+check('a budget of 4 lines cannot hold the third row', windowEnd(rows, 0, 4), 2)
+check('scrolling down moves the start only as far as it must', anchorTop(rows, 4, 5, 0), 2)
+check('a focus above the window pulls the start up to it', anchorTop(rows, 1, 5, 3), 1)
+check('with room to spare the start reaches the very top', anchorTop(rows, 1, 9, 3), 0)
+check('slack below the last row is reclaimed by pulling the start back', anchorTop(rows, 4, 99, 3), 0)
+check('an empty list windows to nothing', anchorTop([], 0, 10, 0), 0)
+check('a zero budget never divides by it', anchorTop(rows, 2, 0, 0), 0)
+check(
+  'at every focus, budget and prior position: the slice fits and the focus is inside it',
+  (() => {
+    for (let budget = 2; budget <= 12; budget++) {
+      for (let focus = 0; focus < rows.length; focus++) {
+        for (let previous = 0; previous < rows.length; previous++) {
+          const top = anchorTop(rows, focus, budget, previous)
+          const end = windowEnd(rows, top, budget)
+          let lines = 0
+          for (let at = top; at < end; at++) lines += rows[at].kind === 'session' ? 2 : 1
+          if (lines > budget) return `overflow: budget=${budget} focus=${focus} prev=${previous} -> ${lines} lines`
+          if (focus < top || focus >= end) {
+            return `focus lost: budget=${budget} focus=${focus} prev=${previous} -> window [${top},${end})`
+          }
+        }
+      }
+    }
+    return 'ok'
+  })(),
+  'ok',
+)
+
+console.log(`verify-session-kinds: OK (${checks} checks)`)

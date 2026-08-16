@@ -1167,14 +1167,6 @@ declare const dict: {
         readonly zh: "已恢复会话";
         readonly en: "Session resumed";
     };
-    readonly 'resume-more-above': {
-        readonly zh: "↑ 还有 {{n}} 条";
-        readonly en: "↑ {{n}} more";
-    };
-    readonly 'resume-more-below': {
-        readonly zh: "↓ 还有 {{n}} 条";
-        readonly en: "↓ {{n}} more";
-    };
     readonly 'resume-delete-confirm': {
         readonly zh: "删除「{{name}}」？会话日志将被永久移除。";
         readonly en: "Delete \"{{name}}\"? The session log is removed permanently.";
@@ -1195,10 +1187,6 @@ declare const dict: {
         readonly zh: "无法重命名会话「{{name}}」";
         readonly en: "Could not rename session {{name}}";
     };
-    readonly 'resume-hint-list': {
-        readonly zh: "**Enter** 恢复 · Esc 退出 · {{mod}}d 删除 · {{mod}}r 重命名";
-        readonly en: "**Enter** to confirm · Esc to exit · {{mod}}d to delete · {{mod}}r to rename";
-    };
     readonly 'resume-hint-delete': {
         readonly zh: "**Enter** 删除 · Esc 取消";
         readonly en: "**Enter** to delete · Esc to cancel";
@@ -1209,7 +1197,103 @@ declare const dict: {
     };
     readonly 'resume-title': {
         readonly zh: "恢复会话";
-        readonly en: "Resume";
+        readonly en: "Resume session";
+    };
+    readonly 'session-loading': {
+        readonly zh: "正在读取会话…";
+        readonly en: "Reading sessions…";
+    };
+    readonly 'session-when-now': {
+        readonly zh: "刚刚";
+        readonly en: "just now";
+    };
+    readonly 'session-when-minutes': {
+        readonly zh: "{{n}} 分钟前";
+        readonly en: "{{n}}m ago";
+    };
+    readonly 'session-when-hours': {
+        readonly zh: "{{n}} 小时前";
+        readonly en: "{{n}}h ago";
+    };
+    readonly 'session-when-days': {
+        readonly zh: "{{n}} 天前";
+        readonly en: "{{n}}d ago";
+    };
+    readonly 'session-when-date': {
+        readonly zh: "{{month}} 月 {{day}} 日";
+        readonly en: "{{month}}/{{day}}";
+    };
+    readonly 'session-children': {
+        readonly zh: "{{n}} 个子运行";
+        readonly en: "{{n}} runs";
+    };
+    readonly 'session-kind-root': {
+        readonly zh: "对话";
+        readonly en: "Conversation";
+    };
+    readonly 'session-kind-fork': {
+        readonly zh: "回溯分支";
+        readonly en: "Rewound branch";
+    };
+    readonly 'session-kind-subagent': {
+        readonly zh: "子 agent 运行";
+        readonly en: "Sub-agent run";
+    };
+    readonly 'session-project-unknown': {
+        readonly zh: "（未记录目录）";
+        readonly en: "(no directory recorded)";
+    };
+    readonly 'session-scope-all': {
+        readonly zh: "全部项目";
+        readonly en: "all projects";
+    };
+    readonly 'session-search-placeholder': {
+        readonly zh: "输入以搜索 · {{scope}}";
+        readonly en: "Type to search · {{scope}}";
+    };
+    readonly 'session-count-shown': {
+        readonly zh: "{{n}} 个会话";
+        readonly en: "{{n}} sessions";
+    };
+    readonly 'session-count-subagents': {
+        readonly zh: "{{n}} 个子运行已折叠";
+        readonly en: "{{n}} runs folded";
+    };
+    readonly 'session-count-empty': {
+        readonly zh: "{{n}} 个空会话";
+        readonly en: "{{n}} empty";
+    };
+    readonly 'session-clean-confirm': {
+        readonly zh: "清理 {{n}} 个没有对话内容的会话？日志将被永久移除。";
+        readonly en: "Remove {{n}} sessions that hold no conversation? Their logs are deleted permanently.";
+    };
+    readonly 'session-cleaned': {
+        readonly zh: "已清理 {{n}} 个空会话";
+        readonly en: "Removed {{n}} empty sessions";
+    };
+    readonly 'session-preview-times': {
+        readonly zh: "创建于 {{created}} · 最后活动 {{updated}}";
+        readonly en: "created {{created}} · last active {{updated}}";
+    };
+    readonly 'session-preview-loading': {
+        readonly zh: "正在读取会话结尾…";
+        readonly en: "Reading the end of this session…";
+    };
+    readonly 'session-preview-empty': {
+        readonly zh: "这个会话没有可预览的往来消息";
+        readonly en: "No exchanges to preview in this session";
+    };
+    readonly 'session-toggle-on': {
+        readonly zh: "开";
+        readonly en: "on";
+    };
+    readonly 'session-toggle-off': {
+        readonly zh: "关";
+        readonly en: "off";
+    };
+    readonly 'session-hint-list': {
+        readonly zh: "**Enter** 恢复 · Tab 预览 · {{mod}}a 全部项目（{{projects}}） · {{mod}}s 子运行（{{runs}}） · {{mod}}b 本分支 · {{mod}}r 重命名 · {{mod}}d 删除 · {{mod}}x 清空壳 · Esc 退出";
+        readonly en: "**Enter** resume · Tab preview · {{mod}}a all projects ({{projects}}) · {{mod}}s runs ({{runs}}) · {{mod}}b this branch · {{mod}}r rename · {{mod}}d delete · {{mod}}x clean · Esc exit";
     };
     readonly 'hint-confirm-exit': {
         readonly zh: "**Enter** 确认 · Esc 退出";
