@@ -87,20 +87,28 @@ export function buildView(
 ): BrowserView {
   const needle = filters.query.trim().toLowerCase()
 
-  // Empty sessions never reach a view. They are counted first, over the whole
-  // list, so the count is honest regardless of which filters are on: the
-  // cleanup action they feed is about the store, not about this view.
+  const inScope = (session: SessionSummary): boolean =>
+    session.id !== context.currentId &&
+    (filters.allProjects || context.sameProject(context.cwd, session.cwd))
+
+  // Empty sessions never reach a view, but they are counted — and the count
+  // feeds a DESTRUCTIVE action, so it is scoped exactly as the list is.
+  // Counting them across every project while showing one project's rows would
+  // put "clean up 15 sessions" on screen next to six, and deleting another
+  // project's history from a view that never mentioned it is not a surprise
+  // anyone should get. The search query deliberately does NOT narrow it:
+  // typing a filter is about finding one session, not about redefining what
+  // "empty" means.
   const emptyIds: string[] = []
   for (const session of sessions) {
-    if (!session.hasPrompt && session.id !== context.currentId) emptyIds.push(session.id)
+    if (!session.hasPrompt && inScope(session)) emptyIds.push(session.id)
   }
   const empty = new Set(emptyIds)
 
   const eligible = sessions.filter(
     session =>
-      session.id !== context.currentId &&
+      inScope(session) &&
       !empty.has(session.id) &&
-      (filters.allProjects || context.sameProject(context.cwd, session.cwd)) &&
       (!filters.branchOnly || (context.branch !== undefined && session.branch === context.branch)),
   )
 

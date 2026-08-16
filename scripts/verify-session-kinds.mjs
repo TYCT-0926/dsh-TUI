@@ -144,6 +144,23 @@ check('a rewind fork survives the sub-agent filter', base.rows.some(r => r.kind 
 check('delegated runs are counted, not merely dropped', base.hiddenSubagents, 2)
 check('sessions with no conversation are counted', base.emptyCount, 1)
 check('and named, so they can be cleaned', base.emptyIds, ['empty'])
+// The count drives a destructive action, so its scope must match the list's.
+const withForeignEmpty = [...population, summary({ id: 'empty-elsewhere', cwd: '/elsewhere', hasPrompt: false })]
+check(
+  'another project\'s empty sessions are NOT offered for cleanup from this one',
+  buildView(withForeignEmpty, DEFAULT_FILTERS, context).emptyIds,
+  ['empty'],
+)
+check(
+  'they are, once the view actually spans every project',
+  buildView(withForeignEmpty, { ...DEFAULT_FILTERS, allProjects: true }, context).emptyIds.sort(),
+  ['empty', 'empty-elsewhere'],
+)
+check(
+  'a search narrows the rows but never what "empty" means',
+  buildView(withForeignEmpty, { ...DEFAULT_FILTERS, query: 'render' }, context).emptyIds,
+  ['empty'],
+)
 check('an empty session is never a row', base.rows.every(r => r.kind !== 'session' || r.session.id !== 'empty'), true)
 check('no project headers inside a single project', base.rows.every(r => r.kind !== 'project'), true)
 
